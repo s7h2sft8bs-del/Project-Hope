@@ -1,0 +1,11 @@
+[server]
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#00FFA3"
+backgroundColor = "#0a0e1a"
+secondaryBackgroundColor = "#151b2e"
+textColor = "#ffffff"
