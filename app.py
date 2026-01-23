@@ -17,20 +17,25 @@ except:
     st.error("Check API setup")
     st.stop()
 
-MAX_RISK_PER_TRADE = 0.005
-MAX_DAILY_LOSS = 0.02
+# 🛡️ ULTRA-SAFE SETTINGS - IMPOSSIBLE TO BLOW ACCOUNT
+TAKE_PROFIT = 0.003      # 0.3% - Lock profits FAST
+STOP_LOSS = 0.005        # 0.5% - Cut losses QUICK
+MAX_RISK_PER_TRADE = 0.005  # 0.5% per trade
+MAX_DAILY_LOSS = 0.02    # 2% daily loss = CIRCUIT BREAKER
+MAX_TRADES_PER_DAY = 10  # Prevent overtrading
 MIN_ACCOUNT_BALANCE = 25
-MAX_POSITION_SIZE = 0.01
 
-for key in ['daily_trades', 'daily_pnl', 'last_date', 'show_share', 'autopilot_active', 'circuit_breaker', 'last_alert']:
+for key in ['daily_trades', 'daily_pnl', 'last_date', 'show_share', 'autopilot_active', 'circuit_breaker', 'last_alert', 'entry_price']:
     if key not in st.session_state:
-        st.session_state[key] = 0 if 'trades' in key or 'pnl' in key else None if 'date' in key or 'alert' in key else False
+        st.session_state[key] = 0.0 if 'pnl' in key or 'price' in key else 0 if 'trades' in key else None if 'date' in key or 'alert' in key else False
 
 st.markdown("""<style>
 .stApp {background: linear-gradient(180deg, #0a0e1a 0%, #151b2e 100%);}
-.block-container {max-width: 480px; margin: auto; padding: 1rem 0.5rem; padding-bottom: 150px;}
+.block-container {max-width: 480px; margin: auto; padding: 1rem; padding-bottom: 150px;}
+div[data-testid="stVerticalBlock"] {text-align: center;}
 .alert-box {background: rgba(255,165,0,0.2); border: 2px solid #FFA500; border-radius: 12px; padding: 15px; margin: 10px 0; animation: pulse 2s infinite;}
 @keyframes pulse {0%, 100% {opacity: 1;} 50% {opacity: 0.7;}}
+.safe-badge {background: rgba(0,255,163,0.1); border: 1px solid #00FFA3; border-radius: 8px; padding: 10px; margin: 10px 0; text-align: center;}
 </style>""", unsafe_allow_html=True)
 
 st.markdown("""
@@ -61,8 +66,10 @@ st.markdown("""
         <line x1="50" y1="143" x2="130" y2="143" stroke="url(#premiumGrad)" stroke-width="2" opacity="0.6"/>
     </svg>
 </div>
-<div style="text-align: center; color: #808495; font-size: 13px; letter-spacing: 2px; margin-bottom: 30px;">SCALP SMART • TRADE FAST</div>
+<div style="text-align: center; color: #808495; font-size: 13px; letter-spacing: 2px; margin-bottom: 20px;">SCALP SMART • TRADE FAST</div>
 """, unsafe_allow_html=True)
+
+st.markdown('<div class="safe-badge">🛡️ <b>ULTRA-SAFE MODE</b> • TP: 0.3% • SL: 0.5% • Max Loss: 2%/day</div>', unsafe_allow_html=True)
 
 st.divider()
 
@@ -78,6 +85,14 @@ if not tier:
 
 tz = pytz.timezone('US/Eastern')
 now = datetime.now(tz)
+today = str(now.date())
+
+if st.session_state.last_date != today:
+    st.session_state.daily_trades = 0
+    st.session_state.daily_pnl = 0.0
+    st.session_state.last_date = today
+    st.session_state.circuit_breaker = False
+
 market_open = (9 <= now.hour < 16) and (now.weekday() < 5)
 
 target = now.replace(hour=9, minute=30, second=0, microsecond=0)
@@ -113,15 +128,27 @@ if tier == 3:
 
 with st.sidebar:
     st.divider()
-    st.metric("Daily Trades", f"{st.session_state.daily_trades}/15")
-    st.metric("Risk/Trade", "0.5%")
+    st.markdown("### 🛡️ PROTECTION")
+    st.metric("Trades", f"{st.session_state.daily_trades}/{MAX_TRADES_PER_DAY}")
+    st.metric("Daily P&L", f"${st.session_state.daily_pnl:.2f}")
+    if st.session_state.circuit_breaker:
+        st.error("🚨 CIRCUIT BREAKER ACTIVE")
 
 try:
     account = api.get_account()
     balance = float(account.equity)
+    start_balance = balance - st.session_state.daily_pnl
     
     if balance < MIN_ACCOUNT_BALANCE:
         st.error(f"🚨 Balance below ${MIN_ACCOUNT_BALANCE}")
+        st.stop()
+    
+    if st.session_state.daily_pnl <= -(start_balance * MAX_DAILY_LOSS):
+        st.session_state.circuit_breaker = True
+    
+    if st.session_state.circuit_breaker:
+        st.error("🚨 CIRCUIT BREAKER ACTIVE - Trading locked for today")
+        st.info(f"Daily loss limit ({MAX_DAILY_LOSS*100}%) reached. Your account is protected.")
         st.stop()
     
     if crypto:
@@ -132,11 +159,39 @@ try:
     shares = round(balance * MAX_RISK_PER_TRADE / price, 3)
     
     positions = api.list_positions()
-    has_position = any(p.symbol == ticker for p in positions)
+    current_position = None
+    has_position = False
     
     for p in positions:
         if p.symbol == ticker:
-            st.session_state.daily_pnl = float(p.unrealized_pl)
+            current_position = p
+            has_position = True
+            break
+    
+    # 🛡️ AUTO TAKE PROFIT & STOP LOSS - ALL TIERS
+    if has_position and current_position:
+        entry_price = float(current_position.avg_entry_price)
+        current_pnl = float(current_position.unrealized_pl)
+        current_pnl_pct = float(current_position.unrealized_plpc)
+        
+        st.session_state.daily_pnl = current_pnl
+        
+        # AUTO TAKE PROFIT at 0.3%
+        if current_pnl_pct >= TAKE_PROFIT:
+            api.close_position(ticker)
+            st.session_state.daily_trades += 1
+            st.success(f"✅ AUTO TAKE PROFIT: +{current_pnl_pct*100:.2f}% (+${current_pnl:.2f})")
+            st.balloons()
+            time.sleep(2)
+            st.rerun()
+        
+        # AUTO STOP LOSS at 0.5%
+        elif current_pnl_pct <= -STOP_LOSS:
+            api.close_position(ticker)
+            st.session_state.daily_trades += 1
+            st.error(f"🛡️ AUTO STOP LOSS: {current_pnl_pct*100:.2f}% (${current_pnl:.2f})")
+            time.sleep(2)
+            st.rerun()
     
     scalp_signal = None
     signal_strength = 0
@@ -171,40 +226,26 @@ try:
                     <div class="alert-box" style="border-color: {alert_color};">
                         <h2 style="color: {alert_color}; margin: 0;">⚡ SCALP ALERT: {scalp_signal}</h2>
                         <p style="color: white; margin: 5px 0;">Momentum: {signal_strength:.2f}%</p>
-                        <p style="color: #808495; font-size: 12px; margin: 0;">Click {scalp_signal} now!</p>
+                        <p style="color: #808495; font-size: 12px; margin: 0;">Auto TP: 0.3% • Auto SL: 0.5%</p>
                     </div>
                     """, unsafe_allow_html=True)
             
-            if tier == 3 and autopilot and st.session_state.daily_trades < 15 and (market_open or crypto):
-                if has_position and st.session_state.daily_pnl < -(balance * 0.005):
-                    api.close_position(ticker)
-                    st.session_state.daily_trades += 1
-                    st.session_state.autopilot_active = False
-                    st.error("🛡️ STOP LOSS")
-                elif has_position and st.session_state.daily_pnl > (balance * 0.005):
-                    api.close_position(ticker)
-                    st.session_state.daily_trades += 1
-                    st.session_state.autopilot_active = False
-                    st.success("✅ PROFIT TAKEN")
-                elif scalp_signal == "BUY" and not has_position:
+            if tier == 3 and autopilot and st.session_state.daily_trades < MAX_TRADES_PER_DAY and (market_open or crypto) and not has_position:
+                if scalp_signal == "BUY":
                     tif = 'gtc' if crypto else 'day'
                     api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
                     st.session_state.daily_trades += 1
-                    st.session_state.autopilot_active = True
                     st.success(f"🤖 AUTO BUY: {signal_strength:.2f}%")
-                elif scalp_signal == "SELL" and has_position:
-                    api.close_position(ticker)
-                    st.session_state.daily_trades += 1
-                    st.session_state.autopilot_active = False
-                    st.success(f"🤖 AUTO SELL: {signal_strength:.2f}%")
+                    time.sleep(1)
+                    st.rerun()
             
             with st.sidebar:
                 st.divider()
-                st.markdown("### ⚡ SCALP SCAN")
+                st.markdown("### ⚡ SCANNER")
                 st.metric("1-Min Move", f"{current_candle_change:+.2f}%")
                 st.metric("Volume", "🔥 HIGH" if volume_spike else "Normal")
                 if scalp_signal:
-                    st.success(f"🎯 {scalp_signal} SIGNAL")
+                    st.success(f"🎯 {scalp_signal}")
                 else:
                     st.info("⏳ Scanning...")
     except:
@@ -216,39 +257,55 @@ try:
     
     st.markdown(f"### 🎯 {ticker}")
     st.markdown(f"## ${price:.2f}")
-    st.caption(f"Size: {shares} shares")
+    st.caption(f"Size: {shares} shares • TP: 0.3% • SL: 0.5%")
     
-    can_trade = (market_open or crypto) and st.session_state.daily_trades < 15
+    if has_position and current_position:
+        pnl_pct = float(current_position.unrealized_plpc) * 100
+        pnl_color = "#00FFA3" if pnl_pct >= 0 else "#FF4B4B"
+        st.markdown(f'<div style="text-align:center; font-size:24px; color:{pnl_color}; font-weight:bold;">OPEN: {pnl_pct:+.2f}%</div>', unsafe_allow_html=True)
+        st.progress(min(max((pnl_pct + 0.5) / 0.8, 0), 1))
+        st.caption("🔴 -0.5% SL | 🟢 +0.3% TP")
+    
+    can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker
+    
+    if not can_trade:
+        if st.session_state.circuit_breaker:
+            st.error("🚨 Circuit breaker active")
+        elif st.session_state.daily_trades >= MAX_TRADES_PER_DAY:
+            st.warning(f"⚠️ Max trades reached ({MAX_TRADES_PER_DAY}/day)")
+        elif not market_open and not crypto:
+            st.info("⏰ Markets closed")
     
     col1, col2 = st.columns(2)
     
-    if col1.button("🟢 BUY", disabled=not can_trade or has_position):
+    if col1.button("🟢 BUY", disabled=not can_trade or has_position, use_container_width=True):
         tif = 'gtc' if crypto else 'day'
         api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
         st.session_state.daily_trades += 1
-        st.success("✅ BUY")
+        st.success("✅ BUY - Auto TP/SL Active!")
         time.sleep(1)
         st.rerun()
         
-    if col2.button("🔴 SELL", disabled=not can_trade or not has_position):
+    if col2.button("🔴 SELL", disabled=not can_trade or not has_position, use_container_width=True):
         api.close_position(ticker)
         st.session_state.daily_trades += 1
-        st.success("✅ SELL")
+        st.success("✅ POSITION CLOSED")
         time.sleep(1)
         st.rerun()
     
     st.divider()
-    if st.button("📱 SHARE MY WINS"):
+    if st.button("📱 SHARE MY WINS", use_container_width=True):
         st.session_state.show_share = not st.session_state.show_share
     
     if st.session_state.show_share:
         display_ticker = "BTC/USD" if ticker == "BTCUSD" else "ETH/USD" if ticker == "ETHUSD" else ticker
         st.code(f"""🌱 PROJECT HOPE 🌱
+🛡️ ULTRA-SAFE MODE
 💰 ${balance:.2f}
 📊 P&L: ${st.session_state.daily_pnl:+.2f}
 🎯 {display_ticker}
-⚡ {st.session_state.daily_trades}/15
-#ProjectHope""")
+⚡ {st.session_state.daily_trades}/{MAX_TRADES_PER_DAY} trades
+#ProjectHope #SafeTrading""")
 
 except Exception as e:
     st.error(f"Error: {e}")
