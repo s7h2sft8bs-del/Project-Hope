@@ -12,21 +12,31 @@ load_dotenv()
 
 try:
     import alpaca_trade_api as tradeapi
-    api = tradeapi.REST(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_SECRET_KEY'), "https://paper-api.alpaca.markets")
+    # Real-time SIP feed (Algo Trader Plus subscription)
+    api = tradeapi.REST(
+        os.getenv('ALPACA_API_KEY'), 
+        os.getenv('ALPACA_SECRET_KEY'), 
+        "https://paper-api.alpaca.markets"
+    )
 except:
     st.error("Check API setup")
     st.stop()
 
-TAKE_PROFIT = 0.003
-STOP_LOSS = 0.005
-MAX_RISK_PER_TRADE = 0.05  # Increased to 5% for small accounts
-MAX_DAILY_LOSS = 0.02
+# =============================================================================
+# BOSS MODE SETTINGS - MAXIMUM PROFIT PROTECTION
+# =============================================================================
+TAKE_PROFIT = 0.003          # 0.3% auto take profit
+STOP_LOSS = 0.005            # 0.5% stop loss
+TRAILING_STOP = 0.002        # 0.2% trailing stop (locks in profits)
+BREAKEVEN_TRIGGER = 0.0015   # Move stop to breakeven at 0.15% profit
+MAX_RISK_PER_TRADE = 0.05    # 5% of account per trade
+MAX_DAILY_LOSS = 0.02        # 2% daily circuit breaker
 MAX_TRADES_PER_DAY = 10
 MIN_ACCOUNT_BALANCE = 25
 
 # Smart Scanner Stock Universe - Quality stocks at various price points
 STOCK_UNIVERSE = [
-    # Under $10
+    # Under $10 - High volume movers
     "NIO", "PLTR", "SOFI", "SNAP", "HOOD", "RIVN", "LCID", "F", "AAL", "CCL",
     # $10-25
     "AMD", "UBER", "COIN", "RBLX", "DKNG", "SQ", "PYPL", "BAC", "T", "WBD",
@@ -40,40 +50,52 @@ STOCK_UNIVERSE = [
     "SPY", "QQQ", "AVGO", "COST", "LLY", "ISRG", "REGN", "ADBE", "NOW", "PANW"
 ]
 
-# Assets that support fractional shares
 FRACTIONAL_ASSETS = ["SPY", "QQQ", "BTCUSD", "ETHUSD"]
 
-for key in ['daily_trades', 'daily_pnl', 'last_date', 'show_share', 'autopilot_active', 'circuit_breaker', 'last_alert', 'entry_price', 'hot_stocks']:
+# Session state initialization
+defaults = {
+    'daily_trades': 0,
+    'daily_pnl': 0.0,
+    'last_date': None,
+    'show_share': False,
+    'autopilot_active': False,
+    'circuit_breaker': False,
+    'last_alert': None,
+    'entry_price': 0.0,
+    'hot_stocks': [],
+    'peak_pnl': 0.0,           # Track highest profit for trailing stop
+    'breakeven_active': False,  # Whether we've moved stop to breakeven
+    'wins': 0,
+    'losses': 0
+}
+
+for key, default in defaults.items():
     if key not in st.session_state:
-        st.session_state[key] = 0.0 if 'pnl' in key or 'price' in key else 0 if 'trades' in key else None if 'date' in key or 'alert' in key else [] if 'hot' in key else False
+        st.session_state[key] = default
 
 def get_affordable_movers(balance, api):
     """Scan for stocks that are affordable AND moving"""
-    max_price = balance * 0.9  # Can afford with 90% of balance
+    max_price = balance * 0.9
     movers = []
     
     try:
-        # Get snapshots for all stocks in universe
         snapshots = api.get_snapshots(STOCK_UNIVERSE)
         
         for symbol, snapshot in snapshots.items():
             if snapshot and snapshot.daily_bar:
                 price = snapshot.latest_trade.price if snapshot.latest_trade else snapshot.daily_bar.close
                 
-                # Skip if can't afford at least 1 share
                 if price > max_price or price < 1:
                     continue
                 
-                # Calculate daily change %
                 prev_close = snapshot.prev_daily_bar.close if snapshot.prev_daily_bar else snapshot.daily_bar.open
                 if prev_close > 0:
                     change_pct = ((price - prev_close) / prev_close) * 100
                 else:
                     continue
                 
-                # Get volume info
                 volume = snapshot.daily_bar.volume if snapshot.daily_bar else 0
-                min_volume = 500000  # Minimum 500K volume for liquidity
+                min_volume = 500000
                 
                 if volume >= min_volume:
                     movers.append({
@@ -84,13 +106,15 @@ def get_affordable_movers(balance, api):
                         'shares': max(1, int(balance * MAX_RISK_PER_TRADE / price))
                     })
         
-        # Sort by absolute change (most movement first)
         movers.sort(key=lambda x: abs(x['change']), reverse=True)
-        return movers[:10]  # Return top 10 movers
+        return movers[:10]
         
     except Exception as e:
         return []
 
+# =============================================================================
+# STYLES
+# =============================================================================
 st.markdown("""<style>
 .stApp {background: linear-gradient(180deg, #0a0e1a 0%, #151b2e 100%);}
 .block-container {max-width: 500px; margin: 0 auto; padding: 1rem 1rem 150px 1rem;}
@@ -104,10 +128,17 @@ h1, h2, h3, p, div {text-align: center;}
 .safe-badge {background: rgba(0,255,163,0.1); border: 1px solid #00FFA3; border-radius: 8px; padding: 10px; margin: 10px auto; text-align: center;}
 .tier-box {background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin: 15px auto; text-align: center;}
 .hot-stock {background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,69,0,0.2)); border: 1px solid #FFD700; border-radius: 8px; padding: 8px; margin: 5px 0; text-align: center;}
+.profit-zone {background: linear-gradient(135deg, rgba(0,255,163,0.3), rgba(0,200,100,0.2)); border: 2px solid #00FFA3; border-radius: 12px; padding: 15px; margin: 10px auto; text-align: center; animation: glow 1.5s infinite;}
+@keyframes glow {0%, 100% {box-shadow: 0 0 10px rgba(0,255,163,0.5);} 50% {box-shadow: 0 0 25px rgba(0,255,163,0.8);}}
+.danger-zone {background: linear-gradient(135deg, rgba(255,75,75,0.3), rgba(200,50,50,0.2)); border: 2px solid #FF4B4B; border-radius: 12px; padding: 15px; margin: 10px auto; text-align: center;}
+.lock-btn {background: linear-gradient(135deg, #00FFA3, #00CC7A) !important; color: black !important; font-weight: bold !important;}
 .gainer {color: #00FFA3;}
 .loser {color: #FF4B4B;}
 </style>""", unsafe_allow_html=True)
 
+# =============================================================================
+# LOGO
+# =============================================================================
 st.markdown("""
 <div style="text-align: center; margin-bottom: 20px;">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="120" height="120" style="filter: drop-shadow(0 4px 8px rgba(0,255,163,0.3));">
@@ -136,9 +167,12 @@ st.markdown("""
         <line x1="50" y1="143" x2="130" y2="143" stroke="url(#premiumGrad)" stroke-width="2" opacity="0.6"/>
     </svg>
 </div>
-<p style="text-align: center; color: #808495; font-size: 13px; letter-spacing: 2px; margin-bottom: 20px;">SCALP SMART • TRADE FAST</p>
+<p style="text-align: center; color: #808495; font-size: 13px; letter-spacing: 2px; margin-bottom: 20px;">SCALP SMART • TRADE FAST • WIN BIG</p>
 """, unsafe_allow_html=True)
 
+# =============================================================================
+# ACCESS CODE
+# =============================================================================
 st.markdown("### 🔐 Enter Access Code")
 col1, col2, col3 = st.columns([1,2,1])
 with col2:
@@ -157,15 +191,18 @@ else:
         <p style="color: #00E5FF; margin: 5px 0;">🚀 TIER 2 - BUILDER</p>
         <p style="color: #808495; font-size: 12px; margin: 0 0 15px 0;">Scanner + Crypto After Hours</p>
         <p style="color: #FFD700; margin: 5px 0;">⚡ TIER 3 - MASTER</p>
-        <p style="color: #808495; font-size: 12px; margin: 0;">Full Access + Autopilot</p>
+        <p style="color: #808495; font-size: 12px; margin: 0;">Full Access + Autopilot + Trailing Stop</p>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
 
-st.markdown('<div class="safe-badge">🛡️ <b>ULTRA-SAFE MODE</b> • TP: 0.3% • SL: 0.5% • Max Loss: 2%/day</div>', unsafe_allow_html=True)
+st.markdown('<div class="safe-badge">🛡️ <b>BOSS MODE</b> • Trailing Stop • Auto Breakeven • Profit Lock</div>', unsafe_allow_html=True)
 
 st.divider()
 
+# =============================================================================
+# TIME & MARKET STATUS
+# =============================================================================
 tz = pytz.timezone('US/Eastern')
 now = datetime.now(tz)
 today = str(now.date())
@@ -176,6 +213,10 @@ if st.session_state.last_date != today:
     st.session_state.last_date = today
     st.session_state.circuit_breaker = False
     st.session_state.hot_stocks = []
+    st.session_state.peak_pnl = 0.0
+    st.session_state.breakeven_active = False
+    st.session_state.wins = 0
+    st.session_state.losses = 0
 
 market_open = (9 <= now.hour < 16) and (now.weekday() < 5)
 
@@ -189,7 +230,9 @@ st.markdown(f"<p style='text-align:center;'><b>{'MARKET OPEN' if market_open els
 
 st.divider()
 
-# Get account info first
+# =============================================================================
+# ACCOUNT INFO
+# =============================================================================
 try:
     account = api.get_account()
     balance = float(account.equity)
@@ -203,7 +246,9 @@ crypto = False
 autopilot = False
 selected_stock = None
 
-# SMART SCANNER - Find affordable movers
+# =============================================================================
+# SIDEBAR - SMART SCANNER
+# =============================================================================
 with st.sidebar:
     st.markdown("### 🔥 SMART SCANNER")
     st.caption(f"Finding stocks for ${balance:.0f} account")
@@ -244,7 +289,7 @@ if st.session_state.hot_stocks:
                     selected_stock = s
                     break
 
-# Crypto option for Tier 2+
+# Crypto for Tier 2+
 if tier >= 2 and now.hour >= 16:
     with st.sidebar:
         st.markdown("---")
@@ -263,7 +308,6 @@ if tier == 3:
         if autopilot:
             st.warning("⚠️ BOT IS LIVE")
             if not ticker and st.session_state.hot_stocks:
-                # Auto-select top mover
                 ticker = st.session_state.hot_stocks[0]['symbol']
                 selected_stock = st.session_state.hot_stocks[0]
                 st.info(f"Auto: {ticker}")
@@ -274,10 +318,18 @@ with st.sidebar:
     st.markdown("### 🛡️ PROTECTION")
     st.metric("Trades", f"{st.session_state.daily_trades}/{MAX_TRADES_PER_DAY}")
     st.metric("Daily P&L", f"${st.session_state.daily_pnl:.2f}")
+    
+    # Win/Loss tracker
+    total_trades = st.session_state.wins + st.session_state.losses
+    win_rate = (st.session_state.wins / total_trades * 100) if total_trades > 0 else 0
+    st.metric("Win Rate", f"{win_rate:.0f}% ({st.session_state.wins}W/{st.session_state.losses}L)")
+    
     if st.session_state.circuit_breaker:
         st.error("🚨 CIRCUIT BREAKER")
 
-# Main Trading Logic
+# =============================================================================
+# MAIN TRADING LOGIC
+# =============================================================================
 try:
     start_balance = balance - st.session_state.daily_pnl
     
@@ -301,7 +353,7 @@ try:
     for p in positions:
         current_position = p
         has_position = True
-        ticker = p.symbol  # Show current position
+        ticker = p.symbol
         break
     
     # Get price for selected ticker
@@ -325,24 +377,69 @@ try:
         price = 0
         shares = 0
     
-    # Auto TP/SL Management
+    # ==========================================================================
+    # BOSS MODE PROFIT PROTECTION SYSTEM
+    # ==========================================================================
     if has_position and current_position:
         current_pnl = float(current_position.unrealized_pl)
         current_pnl_pct = float(current_position.unrealized_plpc)
         st.session_state.daily_pnl = current_pnl
         
+        # Track peak profit for trailing stop
+        if current_pnl_pct > st.session_state.peak_pnl:
+            st.session_state.peak_pnl = current_pnl_pct
+        
+        # RULE 1: Auto breakeven - once we hit 0.15% profit, stop loss moves to entry
+        if current_pnl_pct >= BREAKEVEN_TRIGGER and not st.session_state.breakeven_active:
+            st.session_state.breakeven_active = True
+            st.toast("🛡️ Stop moved to BREAKEVEN!", icon="✅")
+        
+        # RULE 2: Trailing stop - if we've peaked and dropped 0.2% from peak, EXIT
+        if st.session_state.peak_pnl >= BREAKEVEN_TRIGGER:
+            trailing_trigger = st.session_state.peak_pnl - TRAILING_STOP
+            if current_pnl_pct <= trailing_trigger and current_pnl_pct > 0:
+                api.close_position(current_position.symbol)
+                st.session_state.daily_trades += 1
+                st.session_state.wins += 1
+                profit_locked = st.session_state.peak_pnl * 100
+                st.success(f"🔒 TRAILING STOP: Locked +{current_pnl_pct*100:.2f}% (Peak was +{profit_locked:.2f}%)")
+                st.balloons()
+                st.session_state.peak_pnl = 0.0
+                st.session_state.breakeven_active = False
+                time.sleep(2)
+                st.rerun()
+        
+        # RULE 3: Take profit at target
         if current_pnl_pct >= TAKE_PROFIT:
             api.close_position(current_position.symbol)
             st.session_state.daily_trades += 1
-            st.success(f"✅ AUTO TAKE PROFIT: +{current_pnl_pct*100:.2f}%")
+            st.session_state.wins += 1
+            st.success(f"✅ TAKE PROFIT: +{current_pnl_pct*100:.2f}%")
             st.balloons()
+            st.session_state.peak_pnl = 0.0
+            st.session_state.breakeven_active = False
             time.sleep(2)
             st.rerun()
         
-        elif current_pnl_pct <= -STOP_LOSS:
+        # RULE 4: Stop loss (respects breakeven if active)
+        effective_stop = 0 if st.session_state.breakeven_active else -STOP_LOSS
+        if current_pnl_pct <= effective_stop and current_pnl_pct < 0:
             api.close_position(current_position.symbol)
             st.session_state.daily_trades += 1
-            st.error(f"🛡️ AUTO STOP LOSS: {current_pnl_pct*100:.2f}%")
+            st.session_state.losses += 1
+            st.error(f"🛡️ STOP LOSS: {current_pnl_pct*100:.2f}%")
+            st.session_state.peak_pnl = 0.0
+            st.session_state.breakeven_active = False
+            time.sleep(2)
+            st.rerun()
+        
+        # RULE 5: Breakeven exit - if breakeven active and we drop to 0, exit flat
+        if st.session_state.breakeven_active and current_pnl_pct <= 0.0001:
+            api.close_position(current_position.symbol)
+            st.session_state.daily_trades += 1
+            st.info("🛡️ BREAKEVEN EXIT: $0 loss")
+            st.session_state.peak_pnl = 0.0
+            st.session_state.breakeven_active = False
             time.sleep(2)
             st.rerun()
     
@@ -379,15 +476,17 @@ try:
                         <div class="alert-box" style="border-color: {alert_color};">
                             <h2 style="color: {alert_color}; margin: 0;">⚡ SCALP ALERT: {scalp_signal} {ticker}</h2>
                             <p style="color: white; margin: 5px 0;">Momentum: {signal_strength:.2f}%</p>
-                            <p style="color: #808495; font-size: 12px;">Auto TP: 0.3% • Auto SL: 0.5%</p>
+                            <p style="color: #808495; font-size: 12px;">Trailing Stop Active • Auto Breakeven</p>
                         </div>
                         """, unsafe_allow_html=True)
                 
-                # Autopilot execution for Tier 3
+                # Autopilot for Tier 3
                 if tier == 3 and autopilot and st.session_state.daily_trades < MAX_TRADES_PER_DAY and market_open and not has_position:
                     if scalp_signal == "BUY" and shares > 0:
                         api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force='day')
                         st.session_state.daily_trades += 1
+                        st.session_state.peak_pnl = 0.0
+                        st.session_state.breakeven_active = False
                         st.success(f"🤖 AUTO BUY {ticker}: {signal_strength:.2f}%")
                         time.sleep(1)
                         st.rerun()
@@ -405,7 +504,9 @@ try:
         except:
             pass
     
-    # Display Section
+    # ==========================================================================
+    # DISPLAY SECTION
+    # ==========================================================================
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Balance", f"${balance:.2f}")
@@ -418,49 +519,120 @@ try:
         st.markdown(f"<h1 style='text-align:center;'>${price:,.2f}</h1>", unsafe_allow_html=True)
         
         share_label = "shares" if shares != 1 else "share"
-        st.markdown(f"<p style='text-align:center; color:#808495;'>Size: {shares} {share_label} • TP: 0.3% • SL: 0.5%</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align:center; color:#808495;'>Size: {shares} {share_label}</p>", unsafe_allow_html=True)
         
+        # =======================================================================
+        # POSITION DISPLAY WITH BOSS MODE CONTROLS
+        # =======================================================================
         if has_position and current_position:
             pnl_pct = float(current_position.unrealized_plpc) * 100
             pnl_color = "#00FFA3" if pnl_pct >= 0 else "#FF4B4B"
-            st.markdown(f"<h2 style='text-align:center; color:{pnl_color};'>OPEN: {pnl_pct:+.2f}%</h2>", unsafe_allow_html=True)
+            
+            # Show different UI based on profit/loss
+            if pnl_pct > 0:
+                st.markdown(f"""
+                <div class="profit-zone">
+                    <h2 style="color: #00FFA3; margin: 0;">💰 WINNING: +{pnl_pct:.2f}%</h2>
+                    <p style="color: white; margin: 5px 0;">Peak: +{st.session_state.peak_pnl*100:.2f}%</p>
+                    <p style="color: #808495; font-size: 12px;">
+                        {"🛡️ BREAKEVEN ACTIVE" if st.session_state.breakeven_active else "⏳ Breakeven at +0.15%"} 
+                        • Trailing: -0.2% from peak
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                effective_stop_display = "BREAKEVEN (0%)" if st.session_state.breakeven_active else f"-{STOP_LOSS*100:.1f}%"
+                st.markdown(f"""
+                <div class="danger-zone">
+                    <h2 style="color: #FF4B4B; margin: 0;">📉 DOWN: {pnl_pct:.2f}%</h2>
+                    <p style="color: #808495; font-size: 12px;">Stop Loss: {effective_stop_display}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Progress bar
             st.progress(min(max((pnl_pct + 0.5) / 0.8, 0), 1))
-            st.markdown("<p style='text-align:center; color:#808495;'>🔴 -0.5% SL | 🟢 +0.3% TP</p>", unsafe_allow_html=True)
-        
-        can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker and shares > 0
-        
-        if not can_trade:
-            if st.session_state.circuit_breaker:
-                st.error("🚨 Circuit breaker active")
-            elif st.session_state.daily_trades >= MAX_TRADES_PER_DAY:
-                st.warning(f"⚠️ Max trades reached")
-            elif shares == 0:
-                st.warning(f"⚠️ Need ${price:.2f} for 1 share")
-            elif not market_open and not crypto:
-                st.info("⏰ Markets closed")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🟢 BUY", disabled=not can_trade or has_position, use_container_width=True):
-                tif = 'gtc' if crypto else 'day'
-                api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
+            
+            # =================================================================
+            # ACTION BUTTONS - ALWAYS AVAILABLE WHEN IN POSITION
+            # =================================================================
+            st.markdown("---")
+            
+            # LOCK PROFIT button - only shows when in profit
+            if pnl_pct > 0:
+                if st.button(f"🔒 LOCK PROFIT (+{pnl_pct:.2f}%)", use_container_width=True, type="primary"):
+                    api.close_position(current_position.symbol)
+                    st.session_state.daily_trades += 1
+                    st.session_state.wins += 1
+                    st.success(f"💰 PROFIT LOCKED: +{pnl_pct:.2f}%")
+                    st.balloons()
+                    st.session_state.peak_pnl = 0.0
+                    st.session_state.breakeven_active = False
+                    time.sleep(1)
+                    st.rerun()
+            
+            # EXIT NOW button - always available
+            if st.button("🚪 EXIT NOW", use_container_width=True):
+                api.close_position(current_position.symbol)
                 st.session_state.daily_trades += 1
-                st.success("✅ BUY - TP/SL Active!")
+                if pnl_pct >= 0:
+                    st.session_state.wins += 1
+                    st.success(f"✅ CLOSED: +{pnl_pct:.2f}%")
+                else:
+                    st.session_state.losses += 1
+                    st.warning(f"📉 CLOSED: {pnl_pct:.2f}%")
+                st.session_state.peak_pnl = 0.0
+                st.session_state.breakeven_active = False
                 time.sleep(1)
                 st.rerun()
         
-        with col2:
-            if st.button("🔴 SELL", disabled=not has_position, use_container_width=True):
-                api.close_position(ticker)
+        else:
+            # NO POSITION - Show buy controls
+            can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker and shares > 0
+            
+            if not can_trade:
+                if st.session_state.circuit_breaker:
+                    st.error("🚨 Circuit breaker active")
+                elif st.session_state.daily_trades >= MAX_TRADES_PER_DAY:
+                    st.warning(f"⚠️ Max trades reached")
+                elif shares == 0:
+                    st.warning(f"⚠️ Need ${price:.2f} for 1 share")
+                elif not market_open and not crypto:
+                    st.info("⏰ Markets closed")
+            
+            if st.button("🟢 BUY", disabled=not can_trade, use_container_width=True):
+                tif = 'gtc' if crypto else 'day'
+                api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
                 st.session_state.daily_trades += 1
-                st.success("✅ CLOSED")
+                st.session_state.peak_pnl = 0.0
+                st.session_state.breakeven_active = False
+                st.success("✅ BUY - Boss Mode Protection Active!")
                 time.sleep(1)
                 st.rerun()
     else:
         st.markdown("<h3 style='text-align:center; color:#808495;'>👈 Scan & Select a Stock</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#808495;'>Use the Smart Scanner in the sidebar to find affordable, moving stocks.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#808495;'>Use the Smart Scanner to find affordable, moving stocks.</p>", unsafe_allow_html=True)
     
     st.divider()
+    
+    # ==========================================================================
+    # BOSS MODE INFO
+    # ==========================================================================
+    with st.expander("🛡️ BOSS MODE PROTECTION RULES"):
+        st.markdown("""
+        **Your money is protected by 5 rules:**
+        
+        1. **Auto Breakeven** - At +0.15% profit, stop loss moves to $0
+        2. **Trailing Stop** - Locks profits, exits if drops 0.2% from peak
+        3. **Take Profit** - Auto-exits at +0.3%
+        4. **Stop Loss** - Max loss -0.5% (or $0 if breakeven active)
+        5. **Circuit Breaker** - Stops trading at -2% daily loss
+        
+        **Manual Controls:**
+        - 🔒 LOCK PROFIT - Exit anytime you're green
+        - 🚪 EXIT NOW - Emergency exit anytime
+        
+        **You can NEVER lose more than 0.5% per trade!**
+        """)
     
     if st.button("📱 SHARE MY WINS", use_container_width=True):
         st.session_state.show_share = not st.session_state.show_share
@@ -468,12 +640,13 @@ try:
     if st.session_state.show_share:
         display_name = ticker if ticker else "SCANNING"
         st.code(f"""🌱 PROJECT HOPE 🌱
-🛡️ ULTRA-SAFE MODE
+🛡️ BOSS MODE ACTIVE
 💰 ${balance:.2f}
 📊 P&L: ${st.session_state.daily_pnl:+.2f}
+🏆 Win Rate: {win_rate:.0f}%
 🎯 {display_name}
 ⚡ {st.session_state.daily_trades}/{MAX_TRADES_PER_DAY}
-#ProjectHope #SafeTrading""")
+#ProjectHope #BossMode #Winning""")
 
 except Exception as e:
     st.error(f"Error: {e}")
