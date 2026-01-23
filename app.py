@@ -1,4 +1,4 @@
-kimport streamlit as st
+import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import os
 from datetime import datetime, timedelta
