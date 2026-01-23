@@ -1,7 +1,6 @@
-streamlit==1.32.0
-streamlit-autorefresh==1.0.1
-alpaca-trade-api==3.1.1
-python-dotenv==1.0.0
-pandas==2.0.0
-pytz==2024.1
-gunicorn==21.2.0
+streamlit
+streamlit-autorefresh
+alpaca-trade-api
+python-dotenv
+pandas
+pytz
