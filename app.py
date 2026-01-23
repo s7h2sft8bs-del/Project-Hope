@@ -240,7 +240,7 @@ with st.sidebar:
         for stock in st.session_state.hot_stocks[:5]:
             change_class = "gainer" if stock['change'] > 0 else "loser"
             arrow = "🟢" if stock['change'] > 0 else "🔴"
-            display_symbol = stock['symbol'].replace('USD', '/USD') if is_crypto else stock['symbol']
+            display_symbol = stock['symbol']
             shares_display = f"{stock['shares']:.4f}" if is_crypto else f"{stock['shares']}"
             st.markdown(f'<div class="hot-stock">{arrow} <b>{display_symbol}</b> ${stock["price"]:,.2f} <span class="{change_class}">({stock["change"]:+.2f}%)</span><br><small style="color:#808495;">{shares_display} units</small></div>', unsafe_allow_html=True)
     else:
@@ -248,14 +248,13 @@ with st.sidebar:
 
 if st.session_state.hot_stocks:
     is_crypto = st.session_state.get('crypto_mode', False)
-    stock_options = [f"{s['symbol'].replace('USD', '/USD') if is_crypto else s['symbol']} (${s['price']:,.2f})" for s in st.session_state.hot_stocks[:5]]
+    stock_options = [f"{s['symbol']} (${s['price']:,.2f})" for s in st.session_state.hot_stocks[:5]]
     with st.sidebar:
         st.markdown("---")
         st.markdown(f"### 🎯 SELECT {'CRYPTO' if is_crypto else 'STOCK'}")
         selected = st.selectbox("Choose:", ["-- Select --"] + stock_options, label_visibility="collapsed")
         if selected != "-- Select --":
-            selected_display = selected.split(" ")[0]
-            ticker = selected_display.replace('/USD', 'USD') if '/' in selected_display else selected_display
+            ticker = selected.split(" (")[0]  # Get everything before the price
             for s in st.session_state.hot_stocks:
                 if s['symbol'] == ticker:
                     selected_stock = s
@@ -309,7 +308,7 @@ try:
             if crypto or ticker in CRYPTO_UNIVERSE:
                 quote = api.get_latest_crypto_quotes(ticker)
                 if ticker in quote:
-                    price = float(quote[ticker].ap)
+                    price = float(quote[ticker].ap)  # ask price
                 else:
                     bars = api.get_crypto_bars(ticker, '1Min', limit=1).df
                     price = float(bars['close'].iloc[-1]) if len(bars) >= 1 else 0
@@ -371,7 +370,7 @@ try:
     with col2: st.metric("P&L", f"${st.session_state.daily_pnl:.2f}")
 
     if ticker:
-        display_ticker = ticker.replace('USD', '/USD') if crypto else ticker
+        display_ticker = ticker if '/' in ticker else ticker
         st.markdown(f"<p style='text-align:center; color:#00FFA3; font-size:12px;'>{'🪙 CRYPTO • NO PDT • 24/7' if crypto else '📈 STOCK'}</p>", unsafe_allow_html=True)
         st.markdown(f"<h3 style='text-align:center;'>🎯 {display_ticker}</h3>", unsafe_allow_html=True)
         st.markdown(f"<h1 style='text-align:center;'>${price:,.2f}</h1>", unsafe_allow_html=True)
