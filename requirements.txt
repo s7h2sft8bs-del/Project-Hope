@@ -4,3 +4,4 @@ alpaca-trade-api==3.1.1
 python-dotenv==1.0.0
 pandas==2.0.0
 pytz==2024.1
+gunicorn==21.2.0
