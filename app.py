@@ -6,7 +6,7 @@ import pytz
 from dotenv import load_dotenv
 import time
 
-st.set_page_config(page_title="Project Hope", page_icon="🌱", layout="wide")
+st.set_page_config(page_title="Project Hope", page_icon="🌱", layout="centered")
 st_autorefresh(interval=1000, key="clock")
 load_dotenv()
 
@@ -17,12 +17,11 @@ except:
     st.error("Check API setup")
     st.stop()
 
-# 🛡️ ULTRA-SAFE SETTINGS - IMPOSSIBLE TO BLOW ACCOUNT
-TAKE_PROFIT = 0.003      # 0.3% - Lock profits FAST
-STOP_LOSS = 0.005        # 0.5% - Cut losses QUICK
-MAX_RISK_PER_TRADE = 0.005  # 0.5% per trade
-MAX_DAILY_LOSS = 0.02    # 2% daily loss = CIRCUIT BREAKER
-MAX_TRADES_PER_DAY = 10  # Prevent overtrading
+TAKE_PROFIT = 0.003
+STOP_LOSS = 0.005
+MAX_RISK_PER_TRADE = 0.005
+MAX_DAILY_LOSS = 0.02
+MAX_TRADES_PER_DAY = 10
 MIN_ACCOUNT_BALANCE = 25
 
 for key in ['daily_trades', 'daily_pnl', 'last_date', 'show_share', 'autopilot_active', 'circuit_breaker', 'last_alert', 'entry_price']:
@@ -31,11 +30,16 @@ for key in ['daily_trades', 'daily_pnl', 'last_date', 'show_share', 'autopilot_a
 
 st.markdown("""<style>
 .stApp {background: linear-gradient(180deg, #0a0e1a 0%, #151b2e 100%);}
-.block-container {max-width: 480px; margin: auto; padding: 1rem; padding-bottom: 150px;}
-div[data-testid="stVerticalBlock"] {text-align: center;}
-.alert-box {background: rgba(255,165,0,0.2); border: 2px solid #FFA500; border-radius: 12px; padding: 15px; margin: 10px 0; animation: pulse 2s infinite;}
+.block-container {max-width: 500px; margin: 0 auto; padding: 1rem 1rem 150px 1rem;}
+h1, h2, h3, p, div {text-align: center;}
+.stMetric {text-align: center;}
+.stMetric > div {justify-content: center;}
+.stMetric label {justify-content: center;}
+.stButton > button {width: 100%;}
+.alert-box {background: rgba(255,165,0,0.2); border: 2px solid #FFA500; border-radius: 12px; padding: 15px; margin: 10px auto; animation: pulse 2s infinite; text-align: center;}
 @keyframes pulse {0%, 100% {opacity: 1;} 50% {opacity: 0.7;}}
-.safe-badge {background: rgba(0,255,163,0.1); border: 1px solid #00FFA3; border-radius: 8px; padding: 10px; margin: 10px 0; text-align: center;}
+.safe-badge {background: rgba(0,255,163,0.1); border: 1px solid #00FFA3; border-radius: 8px; padding: 10px; margin: 10px auto; text-align: center;}
+.tier-box {background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin: 15px auto; text-align: center;}
 </style>""", unsafe_allow_html=True)
 
 st.markdown("""
@@ -66,22 +70,35 @@ st.markdown("""
         <line x1="50" y1="143" x2="130" y2="143" stroke="url(#premiumGrad)" stroke-width="2" opacity="0.6"/>
     </svg>
 </div>
-<div style="text-align: center; color: #808495; font-size: 13px; letter-spacing: 2px; margin-bottom: 20px;">SCALP SMART • TRADE FAST</div>
+<p style="text-align: center; color: #808495; font-size: 13px; letter-spacing: 2px; margin-bottom: 20px;">SCALP SMART • TRADE FAST</p>
 """, unsafe_allow_html=True)
+
+st.markdown("### 🔐 Enter Access Code")
+col1, col2, col3 = st.columns([1,2,1])
+with col2:
+    code = st.text_input("", type="password", placeholder="Enter code...", label_visibility="collapsed")
+
+tier = 1 if code == "HOPE200" else 2 if code == "HOPE247" else 3 if code == "HOPE777" else 0
+
+if tier:
+    tier_names = {1: "🌱 STARTER", 2: "🚀 BUILDER", 3: "⚡ MASTER"}
+    st.success(f"✅ TIER {tier} - {tier_names[tier]}")
+else:
+    st.markdown("""
+    <div class="tier-box">
+        <p style="color: #00FFA3; margin: 5px 0;">🌱 TIER 1 - STARTER</p>
+        <p style="color: #808495; font-size: 12px; margin: 0 0 15px 0;">SPY Trading + Alerts</p>
+        <p style="color: #00E5FF; margin: 5px 0;">🚀 TIER 2 - BUILDER</p>
+        <p style="color: #808495; font-size: 12px; margin: 0 0 15px 0;">SPY + Crypto After Hours</p>
+        <p style="color: #FFD700; margin: 5px 0;">⚡ TIER 3 - MASTER</p>
+        <p style="color: #808495; font-size: 12px; margin: 0;">Full Access + Autopilot</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
 
 st.markdown('<div class="safe-badge">🛡️ <b>ULTRA-SAFE MODE</b> • TP: 0.3% • SL: 0.5% • Max Loss: 2%/day</div>', unsafe_allow_html=True)
 
 st.divider()
-
-with st.sidebar:
-    st.markdown("### 🔐 ACCESS")
-    code = st.text_input("Code", type="password")
-    tier = 1 if code == "HOPE200" else 2 if code == "HOPE247" else 3 if code == "HOPE777" else 0
-    if tier: st.success(f"✅ TIER {tier}")
-
-if not tier:
-    st.info("Enter code: HOPE200, HOPE247, or HOPE777")
-    st.stop()
 
 tz = pytz.timezone('US/Eastern')
 now = datetime.now(tz)
@@ -99,8 +116,10 @@ target = now.replace(hour=9, minute=30, second=0, microsecond=0)
 if now >= target.replace(hour=16): target += timedelta(days=1)
 while target.weekday() > 4: target += timedelta(days=1)
 delta = target - now
-st.markdown(f"### ⏰ {delta.seconds//3600:02d}:{(delta.seconds%3600)//60:02d}:{delta.seconds%60:02d}")
-st.markdown("**MARKET OPEN**" if market_open else "**NEXT BELL**")
+
+st.markdown(f"<h2 style='text-align:center;'>⏰ {delta.seconds//3600:02d}:{(delta.seconds%3600)//60:02d}:{delta.seconds%60:02d}</h2>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align:center;'><b>{'MARKET OPEN' if market_open else 'NEXT BELL'}</b></p>", unsafe_allow_html=True)
+
 st.divider()
 
 ticker = "SPY"
@@ -109,15 +128,13 @@ autopilot = False
 
 if tier >= 2 and now.hour >= 16:
     with st.sidebar:
-        st.divider()
         st.markdown("### ⚡ CRYPTO")
         if st.checkbox("Enable Crypto"):
             crypto = True
-            ticker = "BTCUSD" if st.radio("", ["Bitcoin", "Ethereum"]) == "Bitcoin" else "ETHUSD"
+            ticker = "BTCUSD" if st.radio("Select:", ["Bitcoin", "Ethereum"]) == "Bitcoin" else "ETHUSD"
 
 if tier == 3:
     with st.sidebar:
-        st.divider()
         st.markdown("### 🎯 STOCK")
         ticker = st.selectbox("Select", ["SPY", "QQQ", "NVDA"])
         st.divider()
@@ -132,7 +149,7 @@ with st.sidebar:
     st.metric("Trades", f"{st.session_state.daily_trades}/{MAX_TRADES_PER_DAY}")
     st.metric("Daily P&L", f"${st.session_state.daily_pnl:.2f}")
     if st.session_state.circuit_breaker:
-        st.error("🚨 CIRCUIT BREAKER ACTIVE")
+        st.error("🚨 CIRCUIT BREAKER")
 
 try:
     account = api.get_account()
@@ -147,8 +164,8 @@ try:
         st.session_state.circuit_breaker = True
     
     if st.session_state.circuit_breaker:
-        st.error("🚨 CIRCUIT BREAKER ACTIVE - Trading locked for today")
-        st.info(f"Daily loss limit ({MAX_DAILY_LOSS*100}%) reached. Your account is protected.")
+        st.error("🚨 CIRCUIT BREAKER ACTIVE")
+        st.info("Daily loss limit reached. Account protected.")
         st.stop()
     
     if crypto:
@@ -168,28 +185,23 @@ try:
             has_position = True
             break
     
-    # 🛡️ AUTO TAKE PROFIT & STOP LOSS - ALL TIERS
     if has_position and current_position:
-        entry_price = float(current_position.avg_entry_price)
         current_pnl = float(current_position.unrealized_pl)
         current_pnl_pct = float(current_position.unrealized_plpc)
-        
         st.session_state.daily_pnl = current_pnl
         
-        # AUTO TAKE PROFIT at 0.3%
         if current_pnl_pct >= TAKE_PROFIT:
             api.close_position(ticker)
             st.session_state.daily_trades += 1
-            st.success(f"✅ AUTO TAKE PROFIT: +{current_pnl_pct*100:.2f}% (+${current_pnl:.2f})")
+            st.success(f"✅ AUTO TAKE PROFIT: +{current_pnl_pct*100:.2f}%")
             st.balloons()
             time.sleep(2)
             st.rerun()
         
-        # AUTO STOP LOSS at 0.5%
         elif current_pnl_pct <= -STOP_LOSS:
             api.close_position(ticker)
             st.session_state.daily_trades += 1
-            st.error(f"🛡️ AUTO STOP LOSS: {current_pnl_pct*100:.2f}% (${current_pnl:.2f})")
+            st.error(f"🛡️ AUTO STOP LOSS: {current_pnl_pct*100:.2f}%")
             time.sleep(2)
             st.rerun()
     
@@ -226,7 +238,7 @@ try:
                     <div class="alert-box" style="border-color: {alert_color};">
                         <h2 style="color: {alert_color}; margin: 0;">⚡ SCALP ALERT: {scalp_signal}</h2>
                         <p style="color: white; margin: 5px 0;">Momentum: {signal_strength:.2f}%</p>
-                        <p style="color: #808495; font-size: 12px; margin: 0;">Auto TP: 0.3% • Auto SL: 0.5%</p>
+                        <p style="color: #808495; font-size: 12px;">Auto TP: 0.3% • Auto SL: 0.5%</p>
                     </div>
                     """, unsafe_allow_html=True)
             
@@ -242,8 +254,7 @@ try:
             with st.sidebar:
                 st.divider()
                 st.markdown("### ⚡ SCANNER")
-                st.metric("1-Min Move", f"{current_candle_change:+.2f}%")
-                st.metric("Volume", "🔥 HIGH" if volume_spike else "Normal")
+                st.metric("1-Min", f"{current_candle_change:+.2f}%")
                 if scalp_signal:
                     st.success(f"🎯 {scalp_signal}")
                 else:
@@ -252,19 +263,22 @@ try:
         pass
     
     col1, col2 = st.columns(2)
-    col1.metric("Balance", f"${balance:.2f}")
-    col2.metric("P&L", f"${st.session_state.daily_pnl:.2f}")
+    with col1:
+        st.metric("Balance", f"${balance:.2f}")
+    with col2:
+        st.metric("P&L", f"${st.session_state.daily_pnl:.2f}")
     
-    st.markdown(f"### 🎯 {ticker}")
-    st.markdown(f"## ${price:.2f}")
-    st.caption(f"Size: {shares} shares • TP: 0.3% • SL: 0.5%")
+    display_ticker = "BTC/USD" if ticker == "BTCUSD" else "ETH/USD" if ticker == "ETHUSD" else ticker
+    st.markdown(f"<h3 style='text-align:center;'>🎯 {display_ticker}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align:center;'>${price:,.2f}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align:center; color:#808495;'>Size: {shares} shares • TP: 0.3% • SL: 0.5%</p>", unsafe_allow_html=True)
     
     if has_position and current_position:
         pnl_pct = float(current_position.unrealized_plpc) * 100
         pnl_color = "#00FFA3" if pnl_pct >= 0 else "#FF4B4B"
-        st.markdown(f'<div style="text-align:center; font-size:24px; color:{pnl_color}; font-weight:bold;">OPEN: {pnl_pct:+.2f}%</div>', unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align:center; color:{pnl_color};'>OPEN: {pnl_pct:+.2f}%</h2>", unsafe_allow_html=True)
         st.progress(min(max((pnl_pct + 0.5) / 0.8, 0), 1))
-        st.caption("🔴 -0.5% SL | 🟢 +0.3% TP")
+        st.markdown("<p style='text-align:center; color:#808495;'>🔴 -0.5% SL | 🟢 +0.3% TP</p>", unsafe_allow_html=True)
     
     can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker
     
@@ -272,39 +286,40 @@ try:
         if st.session_state.circuit_breaker:
             st.error("🚨 Circuit breaker active")
         elif st.session_state.daily_trades >= MAX_TRADES_PER_DAY:
-            st.warning(f"⚠️ Max trades reached ({MAX_TRADES_PER_DAY}/day)")
+            st.warning(f"⚠️ Max trades reached")
         elif not market_open and not crypto:
             st.info("⏰ Markets closed")
     
     col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🟢 BUY", disabled=not can_trade or has_position, use_container_width=True):
+            tif = 'gtc' if crypto else 'day'
+            api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
+            st.session_state.daily_trades += 1
+            st.success("✅ BUY - TP/SL Active!")
+            time.sleep(1)
+            st.rerun()
     
-    if col1.button("🟢 BUY", disabled=not can_trade or has_position, use_container_width=True):
-        tif = 'gtc' if crypto else 'day'
-        api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
-        st.session_state.daily_trades += 1
-        st.success("✅ BUY - Auto TP/SL Active!")
-        time.sleep(1)
-        st.rerun()
-        
-    if col2.button("🔴 SELL", disabled=not can_trade or not has_position, use_container_width=True):
-        api.close_position(ticker)
-        st.session_state.daily_trades += 1
-        st.success("✅ POSITION CLOSED")
-        time.sleep(1)
-        st.rerun()
+    with col2:
+        if st.button("🔴 SELL", disabled=not can_trade or not has_position, use_container_width=True):
+            api.close_position(ticker)
+            st.session_state.daily_trades += 1
+            st.success("✅ CLOSED")
+            time.sleep(1)
+            st.rerun()
     
     st.divider()
+    
     if st.button("📱 SHARE MY WINS", use_container_width=True):
         st.session_state.show_share = not st.session_state.show_share
     
     if st.session_state.show_share:
-        display_ticker = "BTC/USD" if ticker == "BTCUSD" else "ETH/USD" if ticker == "ETHUSD" else ticker
         st.code(f"""🌱 PROJECT HOPE 🌱
 🛡️ ULTRA-SAFE MODE
 💰 ${balance:.2f}
 📊 P&L: ${st.session_state.daily_pnl:+.2f}
 🎯 {display_ticker}
-⚡ {st.session_state.daily_trades}/{MAX_TRADES_PER_DAY} trades
+⚡ {st.session_state.daily_trades}/{MAX_TRADES_PER_DAY}
 #ProjectHope #SafeTrading""")
 
 except Exception as e:
