@@ -28,7 +28,7 @@ for key in ['daily_trades', 'daily_pnl', 'last_date', 'show_share', 'autopilot_a
 
 st.markdown("""<style>
 .stApp {background: linear-gradient(180deg, #0a0e1a 0%, #151b2e 100%);}
-.block-container {max-width: 480px; margin: auto;}
+.block-container {max-width: 480px; margin: auto; padding: 1rem 0.5rem; padding-bottom: 150px;}
 .alert-box {background: rgba(255,165,0,0.2); border: 2px solid #FFA500; border-radius: 12px; padding: 15px; margin: 10px 0; animation: pulse 2s infinite;}
 @keyframes pulse {0%, 100% {opacity: 1;} 50% {opacity: 0.7;}}
 </style>""", unsafe_allow_html=True)
@@ -65,6 +65,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.divider()
+
 with st.sidebar:
     st.markdown("### 🔐 ACCESS")
     code = st.text_input("Code", type="password")
