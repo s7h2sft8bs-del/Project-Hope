@@ -42,8 +42,8 @@ STOCK_UNIVERSE = [
     "SPY", "QQQ", "AVGO", "COST", "LLY", "ISRG", "REGN", "ADBE", "NOW", "PANW"
 ]
 
-CRYPTO_UNIVERSE = ["BTCUSD", "ETHUSD", "SOLUSD", "DOGEUSD", "SHIBUSD", "AVAXUSD", "LINKUSD", "UNIUSD"]
-FRACTIONAL_ASSETS = ["SPY", "QQQ", "BTCUSD", "ETHUSD", "SOLUSD", "DOGEUSD", "SHIBUSD", "AVAXUSD", "LINKUSD", "UNIUSD"]
+CRYPTO_UNIVERSE = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "SHIB/USD", "AVAX/USD", "LINK/USD", "UNI/USD"]
+FRACTIONAL_ASSETS = ["SPY", "QQQ", "BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "SHIB/USD", "AVAX/USD", "LINK/USD", "UNI/USD"]
 
 defaults = {
     'daily_trades': 0, 'daily_pnl': 0.0, 'last_date': None, 'show_share': False,
@@ -84,12 +84,16 @@ def get_crypto_movers(balance, api):
     try:
         for symbol in CRYPTO_UNIVERSE:
             try:
-                trade = api.get_latest_crypto_trade(symbol, exchange='CBSE')
-                price = float(trade.price)
-                bars = api.get_crypto_bars(symbol, '1Day', limit=2, exchanges=['CBSE']).df
-                change_pct = ((price - bars['close'].iloc[-2]) / bars['close'].iloc[-2]) * 100 if len(bars) >= 2 else 0
-                shares = round((balance * MAX_RISK_PER_TRADE) / price, 6)
-                movers.append({'symbol': symbol, 'price': price, 'change': change_pct, 'volume': 0, 'shares': shares, 'is_crypto': True})
+                bars = api.get_crypto_bars(symbol, '1Day', limit=2).df
+                if len(bars) >= 1:
+                    price = float(bars['close'].iloc[-1])
+                    if len(bars) >= 2:
+                        prev_close = float(bars['close'].iloc[-2])
+                        change_pct = ((price - prev_close) / prev_close) * 100
+                    else:
+                        change_pct = 0
+                    shares = round((balance * MAX_RISK_PER_TRADE) / price, 6)
+                    movers.append({'symbol': symbol, 'price': price, 'change': change_pct, 'volume': 0, 'shares': shares, 'is_crypto': True})
             except:
                 continue
         movers.sort(key=lambda x: abs(x['change']), reverse=True)
@@ -302,8 +306,12 @@ try:
 
     if ticker:
         try:
-            price = float(api.get_latest_crypto_trade(ticker, exchange='CBSE').price) if crypto or ticker in CRYPTO_UNIVERSE else float(api.get_latest_trade(ticker).price)
-            if ticker in CRYPTO_UNIVERSE: crypto = True
+            if crypto or ticker in CRYPTO_UNIVERSE:
+                bars = api.get_crypto_bars(ticker, '1Min', limit=1).df
+                price = float(bars['close'].iloc[-1]) if len(bars) >= 1 else 0
+                crypto = True
+            else:
+                price = float(api.get_latest_trade(ticker).price)
         except:
             price = selected_stock['price'] if selected_stock else 0
         if crypto or ticker in FRACTIONAL_ASSETS:
