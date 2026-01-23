@@ -173,13 +173,7 @@ try:
     else:
         price = float(api.get_latest_trade(ticker).price)
     
-    # FIXED: Calculate shares with minimum of 1 and balance check
     shares = round(balance * MAX_RISK_PER_TRADE / price, 3)
-    if shares < 1:
-        shares = 1
-    
-    # Check if user can afford at least 1 share
-    can_afford = (shares * price) <= balance
     
     positions = api.list_positions()
     current_position = None
@@ -248,8 +242,7 @@ try:
                     </div>
                     """, unsafe_allow_html=True)
             
-            # FIXED: Added can_afford check for autopilot
-            if tier == 3 and autopilot and st.session_state.daily_trades < MAX_TRADES_PER_DAY and (market_open or crypto) and not has_position and can_afford:
+            if tier == 3 and autopilot and st.session_state.daily_trades < MAX_TRADES_PER_DAY and (market_open or crypto) and not has_position:
                 if scalp_signal == "BUY":
                     tif = 'gtc' if crypto else 'day'
                     api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
@@ -280,10 +273,6 @@ try:
     st.markdown(f"<h1 style='text-align:center;'>${price:,.2f}</h1>", unsafe_allow_html=True)
     st.markdown(f"<p style='text-align:center; color:#808495;'>Size: {shares} shares • TP: 0.3% • SL: 0.5%</p>", unsafe_allow_html=True)
     
-    # FIXED: Show warning if can't afford
-    if not can_afford:
-        st.warning(f"⚠️ Need ${shares * price:.2f} for {shares} share(s) of {ticker}")
-    
     if has_position and current_position:
         pnl_pct = float(current_position.unrealized_plpc) * 100
         pnl_color = "#00FFA3" if pnl_pct >= 0 else "#FF4B4B"
@@ -291,16 +280,13 @@ try:
         st.progress(min(max((pnl_pct + 0.5) / 0.8, 0), 1))
         st.markdown("<p style='text-align:center; color:#808495;'>🔴 -0.5% SL | 🟢 +0.3% TP</p>", unsafe_allow_html=True)
     
-    # FIXED: Added can_afford to trading conditions
-    can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker and can_afford
+    can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker
     
     if not can_trade:
         if st.session_state.circuit_breaker:
             st.error("🚨 Circuit breaker active")
         elif st.session_state.daily_trades >= MAX_TRADES_PER_DAY:
             st.warning(f"⚠️ Max trades reached")
-        elif not can_afford:
-            st.error(f"🚨 Insufficient balance for {ticker}")
         elif not market_open and not crypto:
             st.info("⏰ Markets closed")
     
