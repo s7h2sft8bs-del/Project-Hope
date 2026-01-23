@@ -307,8 +307,12 @@ try:
     if ticker:
         try:
             if crypto or ticker in CRYPTO_UNIVERSE:
-                bars = api.get_crypto_bars(ticker, '1Min', limit=1).df
-                price = float(bars['close'].iloc[-1]) if len(bars) >= 1 else 0
+                quote = api.get_latest_crypto_quotes(ticker)
+                if ticker in quote:
+                    price = float(quote[ticker].ap)
+                else:
+                    bars = api.get_crypto_bars(ticker, '1Min', limit=1).df
+                    price = float(bars['close'].iloc[-1]) if len(bars) >= 1 else 0
                 crypto = True
             else:
                 price = float(api.get_latest_trade(ticker).price)
