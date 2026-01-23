@@ -24,6 +24,9 @@ MAX_DAILY_LOSS = 0.02
 MAX_TRADES_PER_DAY = 10
 MIN_ACCOUNT_BALANCE = 25
 
+# Assets that support fractional shares on Alpaca
+FRACTIONAL_ASSETS = ["SPY", "QQQ", "BTCUSD", "ETHUSD"]
+
 for key in ['daily_trades', 'daily_pnl', 'last_date', 'show_share', 'autopilot_active', 'circuit_breaker', 'last_alert', 'entry_price']:
     if key not in st.session_state:
         st.session_state[key] = 0.0 if 'pnl' in key or 'price' in key else 0 if 'trades' in key else None if 'date' in key or 'alert' in key else False
@@ -173,7 +176,15 @@ try:
     else:
         price = float(api.get_latest_trade(ticker).price)
     
-    shares = round(balance * MAX_RISK_PER_TRADE / price, 3)
+    # FIX: Calculate shares based on whether asset supports fractional trading
+    if ticker in FRACTIONAL_ASSETS:
+        shares = round(balance * MAX_RISK_PER_TRADE / price, 3)
+    else:
+        # For stocks like NVDA that don't support fractions, use whole shares
+        shares = max(1, int(balance * MAX_RISK_PER_TRADE / price))
+        # Safety check: ensure we have enough balance for at least 1 share
+        if balance < price:
+            shares = 0
     
     positions = api.list_positions()
     current_position = None
@@ -243,13 +254,15 @@ try:
                     """, unsafe_allow_html=True)
             
             if tier == 3 and autopilot and st.session_state.daily_trades < MAX_TRADES_PER_DAY and (market_open or crypto) and not has_position:
-                if scalp_signal == "BUY":
+                if scalp_signal == "BUY" and shares > 0:
                     tif = 'gtc' if crypto else 'day'
                     api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force=tif)
                     st.session_state.daily_trades += 1
                     st.success(f"🤖 AUTO BUY: {signal_strength:.2f}%")
                     time.sleep(1)
                     st.rerun()
+                elif scalp_signal == "BUY" and shares == 0:
+                    st.warning(f"⚠️ Insufficient balance for 1 share of {ticker}")
             
             with st.sidebar:
                 st.divider()
@@ -271,7 +284,10 @@ try:
     display_ticker = "BTC/USD" if ticker == "BTCUSD" else "ETH/USD" if ticker == "ETHUSD" else ticker
     st.markdown(f"<h3 style='text-align:center;'>🎯 {display_ticker}</h3>", unsafe_allow_html=True)
     st.markdown(f"<h1 style='text-align:center;'>${price:,.2f}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align:center; color:#808495;'>Size: {shares} shares • TP: 0.3% • SL: 0.5%</p>", unsafe_allow_html=True)
+    
+    # Show appropriate share info
+    share_label = "shares" if shares != 1 else "share"
+    st.markdown(f"<p style='text-align:center; color:#808495;'>Size: {shares} {share_label} • TP: 0.3% • SL: 0.5%</p>", unsafe_allow_html=True)
     
     if has_position and current_position:
         pnl_pct = float(current_position.unrealized_plpc) * 100
@@ -280,13 +296,15 @@ try:
         st.progress(min(max((pnl_pct + 0.5) / 0.8, 0), 1))
         st.markdown("<p style='text-align:center; color:#808495;'>🔴 -0.5% SL | 🟢 +0.3% TP</p>", unsafe_allow_html=True)
     
-    can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker
+    can_trade = (market_open or crypto) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker and shares > 0
     
     if not can_trade:
         if st.session_state.circuit_breaker:
             st.error("🚨 Circuit breaker active")
         elif st.session_state.daily_trades >= MAX_TRADES_PER_DAY:
             st.warning(f"⚠️ Max trades reached")
+        elif shares == 0:
+            st.warning(f"⚠️ Insufficient balance for {ticker}")
         elif not market_open and not crypto:
             st.info("⏰ Markets closed")
     
