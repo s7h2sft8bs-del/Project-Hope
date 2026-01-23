@@ -101,6 +101,39 @@ def get_crypto_movers(balance, api):
     except:
         return []
 
+def get_crypto_signal(symbol, api):
+    """Check short-term momentum for BUY signal using 5-min bars"""
+    try:
+        # Get 5-minute bars for momentum
+        bars = api.get_crypto_bars(symbol, '5Min', limit=6).df
+        if len(bars) < 3:
+            return "WAIT", 0, "Not enough data"
+        
+        # Calculate short-term momentum
+        prices = bars['close'].values
+        current_price = prices[-1]
+        price_5min_ago = prices[-2] if len(prices) >= 2 else current_price
+        price_15min_ago = prices[-4] if len(prices) >= 4 else current_price
+        
+        # EMAs
+        ema_2 = prices[-2:].mean()
+        ema_4 = prices[-4:].mean() if len(prices) >= 4 else ema_2
+        
+        # Momentum calculations
+        momentum_5m = ((current_price - price_5min_ago) / price_5min_ago) * 100
+        momentum_15m = ((current_price - price_15min_ago) / price_15min_ago) * 100
+        
+        # Signal logic - looking for upward momentum
+        if current_price > ema_2 > ema_4 and momentum_5m > 0.03 and momentum_15m > 0:
+            strength = min(abs(momentum_15m) * 25, 100)
+            return "BUY", strength, f"+{momentum_5m:.2f}% (5m)"
+        elif momentum_5m < -0.05:
+            return "WAIT", 0, f"{momentum_5m:.2f}% dropping"
+        else:
+            return "WAIT", 0, "Waiting for momentum"
+    except Exception as e:
+        return "WAIT", 0, "Scanning..."
+
 st.markdown("""<style>
 .stApp {background: linear-gradient(180deg, #0a0e1a 0%, #151b2e 100%);}
 .block-container {max-width: 500px; margin: 0 auto; padding: 1rem 1rem 150px 1rem;}
@@ -376,6 +409,32 @@ try:
         st.markdown(f"<h1 style='text-align:center;'>${price:,.2f}</h1>", unsafe_allow_html=True)
         shares_display = f"{shares:.6f}" if crypto else f"{shares}"
         st.markdown(f"<p style='text-align:center; color:#808495;'>Size: {shares_display} {'units' if crypto else 'shares'}</p>", unsafe_allow_html=True)
+        
+        # Get momentum signal for crypto
+        signal = "WAIT"
+        signal_strength = 0
+        signal_reason = ""
+        if crypto and not has_position:
+            signal, signal_strength, signal_reason = get_crypto_signal(ticker, api)
+            if signal == "BUY":
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, rgba(0,255,163,0.3), rgba(0,200,100,0.2)); border: 2px solid #00FFA3; border-radius: 12px; padding: 15px; margin: 10px auto; text-align: center;">
+                    <h2 style="color: #00FFA3; margin: 0;">🟢 BUY SIGNAL</h2>
+                    <p style="color: white; margin: 5px 0;">{signal_reason}</p>
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 5px; margin-top: 10px;">
+                        <div style="background: linear-gradient(90deg, #00FFA3, #00CC7A); width: {signal_strength}%; height: 8px; border-radius: 4px;"></div>
+                    </div>
+                    <p style="color: #808495; font-size: 11px; margin-top: 5px;">Signal Strength: {signal_strength:.0f}%</p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="background: rgba(255,165,0,0.2); border: 2px solid #FFA500; border-radius: 12px; padding: 15px; margin: 10px auto; text-align: center;">
+                    <h2 style="color: #FFA500; margin: 0;">⏳ WAIT</h2>
+                    <p style="color: #808495; margin: 5px 0;">{signal_reason}</p>
+                    <p style="color: #808495; font-size: 11px;">Don't buy into falling momentum</p>
+                </div>
+                """, unsafe_allow_html=True)
 
         if has_position and current_position:
             pnl_pct = float(current_position.unrealized_plpc) * 100
@@ -405,16 +464,37 @@ try:
                 time.sleep(1)
                 st.rerun()
         else:
+            # Check if signal is good for buying
+            good_signal = signal == "BUY" if crypto else True
             can_trade = (crypto or market_open) and st.session_state.daily_trades < MAX_TRADES_PER_DAY and not st.session_state.circuit_breaker and shares > 0
+            
             if not can_trade:
                 if not (crypto or market_open): st.info("⏰ Markets closed - Switch to CRYPTO for 24/7!")
                 elif shares == 0: st.warning(f"⚠️ Need ${price:.2f} minimum")
-            if st.button("🟢 BUY", disabled=not can_trade, use_container_width=True):
+            
+            # BUY button - enabled only with good signal
+            if can_trade and good_signal:
+                if st.button("🟢 BUY NOW", use_container_width=True, type="primary"):
+                    api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force='gtc' if crypto else 'day')
+                    st.session_state.daily_trades += 1
+                    st.session_state.peak_pnl = 0.0
+                    st.session_state.breakeven_active = False
+                    st.success("✅ BUY - Boss Mode Active!")
+                    time.sleep(1)
+                    st.rerun()
+            elif can_trade and not good_signal:
+                st.button("⏳ WAIT FOR SIGNAL", disabled=True, use_container_width=True)
+                st.caption("Button activates when momentum turns up")
+            else:
+                st.button("🟢 BUY", disabled=True, use_container_width=True)
+            
+            # Autopilot auto-buy when signal is good
+            if tier == 3 and autopilot and can_trade and good_signal and signal_strength >= 50:
                 api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force='gtc' if crypto else 'day')
                 st.session_state.daily_trades += 1
                 st.session_state.peak_pnl = 0.0
                 st.session_state.breakeven_active = False
-                st.success("✅ BUY - Boss Mode Active!")
+                st.success(f"🤖 AUTO BUY - {signal_reason}")
                 time.sleep(1)
                 st.rerun()
     else:
