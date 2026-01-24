@@ -618,7 +618,7 @@ def render_about():
     with col1:
         st.markdown("""
         <div style="text-align: center;">
-            <img src="https://i.postimg.cc/s2wTSsbgK/IMG-7642.jpg" style="width: 100%; max-width: 300px; border-radius: 20px; border: 3px solid #FFD700;">
+            <img src="https://i.postimg.cc/qvVSgvfx/IMG-7642.jpg" style="width: 100%; max-width: 300px; border-radius: 20px; border: 3px solid #FFD700;">
         </div>
         """, unsafe_allow_html=True)
         st.markdown("""
