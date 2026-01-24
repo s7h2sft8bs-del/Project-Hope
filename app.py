@@ -24,7 +24,7 @@ def send_notification(title, message, priority=0):
         pass
 
 st.set_page_config(page_title="Project Hope", page_icon="🌱", layout="centered")
-st_autorefresh(interval=1000, key="clock")
+st_autorefresh(interval=5000, key="live_refresh")
 load_dotenv()
 
 try:
@@ -46,7 +46,8 @@ MAX_RISK_PER_TRADE = 0.05
 MAX_DAILY_LOSS = 0.02
 MAX_TRADES_PER_DAY = 10
 MIN_ACCOUNT_BALANCE = 25
-AUTO_SCAN_INTERVAL = 60
+AUTO_SCAN_INTERVAL = 30
+MIN_SIGNAL_STRENGTH = 10
 
 STOCK_UNIVERSE = [
     "NIO", "PLTR", "SOFI", "SNAP", "HOOD", "RIVN", "LCID", "F", "AAL", "CCL",
@@ -69,6 +70,17 @@ defaults = {
 for key, default in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+def get_live_crypto_price(symbol, api):
+    try:
+        quote = api.get_latest_crypto_quotes(symbol)
+        if symbol in quote:
+            return float(quote[symbol].ap)
+        else:
+            bars = api.get_crypto_bars(symbol, '1Min', limit=1).df
+            return float(bars['close'].iloc[-1]) if len(bars) >= 1 else 0
+    except:
+        return 0
 
 def get_affordable_movers(balance, api):
     max_price = balance * 0.9
@@ -123,23 +135,26 @@ def get_crypto_movers(balance, api):
 def get_crypto_signal(symbol, api):
     try:
         bars = api.get_crypto_bars(symbol, '5Min', limit=6).df
-        if len(bars) < 3:
+        if len(bars) < 2:
             return "WAIT", 0, "Not enough data"
+        
         prices = bars['close'].values
         current_price = prices[-1]
         price_5min_ago = prices[-2] if len(prices) >= 2 else current_price
         price_15min_ago = prices[-4] if len(prices) >= 4 else current_price
-        ema_2 = prices[-2:].mean()
-        ema_4 = prices[-4:].mean() if len(prices) >= 4 else ema_2
+        
         momentum_5m = ((current_price - price_5min_ago) / price_5min_ago) * 100
         momentum_15m = ((current_price - price_15min_ago) / price_15min_ago) * 100
-        if current_price > ema_2 > ema_4 and momentum_5m > 0.03 and momentum_15m > 0:
-            strength = min(abs(momentum_15m) * 25, 100)
-            return "BUY", strength, f"+{momentum_5m:.2f}% (5m)"
-        elif momentum_5m < -0.05:
-            return "WAIT", 0, f"{momentum_5m:.2f}% dropping"
+        
+        if momentum_5m > 0.01:
+            strength = min(abs(momentum_5m) * 100, 100)
+            if momentum_15m > 0:
+                strength = min(strength + 20, 100)
+            return "BUY", strength, f"+{momentum_5m:.3f}% (5m)"
+        elif momentum_5m < -0.02:
+            return "WAIT", 0, f"{momentum_5m:.3f}% dropping"
         else:
-            return "WAIT", 0, "Waiting for momentum"
+            return "WAIT", 0, f"Flat ({momentum_5m:.3f}%)"
     except Exception as e:
         return "WAIT", 0, "Scanning..."
 
@@ -159,6 +174,8 @@ h1, h2, h3, p, div {text-align: center;}
 .danger-zone {background: linear-gradient(135deg, rgba(255,75,75,0.3), rgba(200,50,50,0.2)); border: 2px solid #FF4B4B; border-radius: 12px; padding: 15px; margin: 10px auto; text-align: center;}
 .gainer {color: #00FFA3;}
 .loser {color: #FF4B4B;}
+.live-badge {background: rgba(255,0,0,0.2); border: 1px solid #FF0000; border-radius: 4px; padding: 2px 8px; font-size: 10px; color: #FF0000; animation: blink 1s infinite;}
+@keyframes blink {0%, 100% {opacity: 1;} 50% {opacity: 0.5;}}
 </style>""", unsafe_allow_html=True)
 
 st.markdown("""
@@ -257,6 +274,7 @@ selected_stock = None
 
 with st.sidebar:
     st.markdown("### 🔥 SMART SCANNER")
+    st.markdown('<span class="live-badge">🔴 LIVE</span>', unsafe_allow_html=True)
     st.caption(f"Finding trades for ${balance:.0f} account")
     scan_mode = st.radio("Mode:", ["🪙 CRYPTO (No PDT!)", "📈 STOCKS"], horizontal=True)
     
@@ -280,6 +298,9 @@ with st.sidebar:
         is_crypto = st.session_state.get('crypto_mode', False)
         st.markdown(f"**{'🔥 5-MIN MOMENTUM:' if is_crypto else 'TOP STOCK MOVERS:'}**")
         for stock in st.session_state.hot_stocks[:5]:
+            live_price = get_live_crypto_price(stock['symbol'], api) if is_crypto else stock['price']
+            if live_price > 0:
+                stock['price'] = live_price
             change_class = "gainer" if stock['change'] > 0 else "loser"
             arrow = "🟢" if stock['change'] > 0 else "🔴"
             display_symbol = stock['symbol']
@@ -367,12 +388,9 @@ try:
     if ticker:
         try:
             if crypto or ticker in CRYPTO_UNIVERSE:
-                quote = api.get_latest_crypto_quotes(ticker)
-                if ticker in quote:
-                    price = float(quote[ticker].ap)
-                else:
-                    bars = api.get_crypto_bars(ticker, '1Min', limit=1).df
-                    price = float(bars['close'].iloc[-1]) if len(bars) >= 1 else 0
+                price = get_live_crypto_price(ticker, api)
+                if price == 0:
+                    price = selected_stock['price'] if selected_stock else 0
                 crypto = True
             else:
                 price = float(api.get_latest_trade(ticker).price)
@@ -435,7 +453,7 @@ try:
 
     if ticker:
         display_ticker = ticker if '/' in ticker else ticker
-        st.markdown(f"<p style='text-align:center; color:#00FFA3; font-size:12px;'>{'🪙 CRYPTO • NO PDT • 24/7' if crypto else '📈 STOCK'}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align:center; color:#00FFA3; font-size:12px;'>{'🪙 CRYPTO • NO PDT • 24/7' if crypto else '📈 STOCK'} <span class='live-badge'>🔴 LIVE</span></p>", unsafe_allow_html=True)
         st.markdown(f"<h3 style='text-align:center;'>🎯 {display_ticker}</h3>", unsafe_allow_html=True)
         st.markdown(f"<h1 style='text-align:center;'>${price:,.2f}</h1>", unsafe_allow_html=True)
         shares_display = f"{shares:.6f}" if crypto else f"{shares}"
@@ -479,6 +497,7 @@ try:
                     api.close_position(current_position.symbol)
                     st.session_state.daily_trades += 1
                     st.session_state.wins += 1
+                    send_notification("🔒 MANUAL PROFIT", f"{current_position.symbol} +{pnl_pct:.2f}%", 1)
                     st.balloons()
                     st.session_state.peak_pnl = 0.0
                     st.session_state.breakeven_active = False
@@ -489,6 +508,7 @@ try:
                 st.session_state.daily_trades += 1
                 if pnl_pct >= 0: st.session_state.wins += 1
                 else: st.session_state.losses += 1
+                send_notification("🚪 MANUAL EXIT", f"{current_position.symbol} {pnl_pct:.2f}%", 0)
                 st.session_state.peak_pnl = 0.0
                 st.session_state.breakeven_active = False
                 time.sleep(1)
@@ -517,7 +537,7 @@ try:
             else:
                 st.button("🟢 BUY", disabled=True, use_container_width=True)
             
-            if tier == 3 and autopilot and can_trade and good_signal and signal_strength >= 50:
+            if tier == 3 and autopilot and can_trade and good_signal and signal_strength >= MIN_SIGNAL_STRENGTH:
                 api.submit_order(symbol=ticker, qty=shares, side='buy', type='market', time_in_force='gtc' if crypto else 'day')
                 st.session_state.daily_trades += 1
                 st.session_state.peak_pnl = 0.0
@@ -540,9 +560,9 @@ try:
         5. Circuit Breaker at -2% daily
         
         **AUTOPILOT (Tier 3):**
-        - Auto-scans every 60 seconds
-        - Auto-picks best mover
-        - Auto-buys on 50%+ signal
+        - Auto-scans every 30 seconds
+        - Signal threshold: 10%
+        - Auto-buys on any upward momentum
         - Auto-protects with Boss Mode
         
         **CRYPTO = NO PDT + 24/7 Trading!**
