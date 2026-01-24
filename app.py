@@ -24,7 +24,7 @@ def send_notification(title, message, priority=0):
         pass
 
 st.set_page_config(page_title="Project Hope", page_icon="🌱", layout="centered")
-st_autorefresh(interval=5000, key="live_refresh")
+st_autorefresh(interval=3000, key="live_refresh")
 load_dotenv()
 
 try:
@@ -46,8 +46,8 @@ MAX_RISK_PER_TRADE = 0.05
 MAX_DAILY_LOSS = 0.02
 MAX_TRADES_PER_DAY = 10
 MIN_ACCOUNT_BALANCE = 25
-AUTO_SCAN_INTERVAL = 30
-MIN_SIGNAL_STRENGTH = 10
+AUTO_SCAN_INTERVAL = 15
+MIN_SIGNAL_STRENGTH = 1
 
 STOCK_UNIVERSE = [
     "NIO", "PLTR", "SOFI", "SNAP", "HOOD", "RIVN", "LCID", "F", "AAL", "CCL",
@@ -146,11 +146,11 @@ def get_crypto_signal(symbol, api):
         momentum_5m = ((current_price - price_5min_ago) / price_5min_ago) * 100
         momentum_15m = ((current_price - price_15min_ago) / price_15min_ago) * 100
         
-        if momentum_5m > 0.01:
+        if momentum_5m > 0.001:
             strength = min(abs(momentum_5m) * 100, 100)
             if momentum_15m > 0:
                 strength = min(strength + 20, 100)
-            return "BUY", strength, f"+{momentum_5m:.3f}% (5m)"
+            return "BUY", max(strength, 5), f"+{momentum_5m:.3f}% (5m)"
         elif momentum_5m < -0.02:
             return "WAIT", 0, f"{momentum_5m:.3f}% dropping"
         else:
@@ -330,7 +330,7 @@ if tier == 3:
         st.markdown("### 🤖 AUTOPILOT")
         autopilot = st.checkbox("Full Auto Trading")
         if autopilot:
-            st.markdown('<div style="background: linear-gradient(135deg, rgba(255,215,0,0.3), rgba(255,165,0,0.2)); border: 2px solid #FFD700; border-radius: 12px; padding: 10px; margin: 10px 0; text-align: center;"><b>🤖 BOT IS LIVE</b><br><small>Auto-scan • Auto-trade • Auto-protect</small></div>', unsafe_allow_html=True)
+            st.markdown('<div style="background: linear-gradient(135deg, rgba(255,215,0,0.3), rgba(255,165,0,0.2)); border: 2px solid #FFD700; border-radius: 12px; padding: 10px; margin: 10px 0; text-align: center;"><b>🤖 BOT IS LIVE</b><br><small>15s scan • ANY green = BUY</small></div>', unsafe_allow_html=True)
             
             current_time = time.time()
             time_since_scan = current_time - st.session_state.last_scan_time
@@ -559,11 +559,11 @@ try:
         4. Stop Loss at -0.5%
         5. Circuit Breaker at -2% daily
         
-        **AUTOPILOT (Tier 3):**
-        - Auto-scans every 30 seconds
-        - Signal threshold: 10%
-        - Auto-buys on any upward momentum
-        - Auto-protects with Boss Mode
+        **ULTRA AGGRESSIVE AUTOPILOT:**
+        - 3-second refresh
+        - 15-second auto-scan
+        - 1% signal threshold
+        - ANY green momentum = BUY
         
         **CRYPTO = NO PDT + 24/7 Trading!**
         """)

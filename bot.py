@@ -21,8 +21,8 @@ BREAKEVEN_TRIGGER = 0.0015
 MAX_RISK_PER_TRADE = 0.05
 MAX_DAILY_LOSS = 0.02
 MAX_TRADES_PER_DAY = 10
-SCAN_INTERVAL = 30
-MIN_SIGNAL_STRENGTH = 10
+SCAN_INTERVAL = 15
+MIN_SIGNAL_STRENGTH = 1
 
 CRYPTO_UNIVERSE = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "SHIB/USD", "AVAX/USD", "LINK/USD", "UNI/USD"]
 
@@ -90,11 +90,11 @@ def get_crypto_signal(symbol):
         prices = bars['close'].values
         m5 = ((prices[-1] - prices[-2]) / prices[-2]) * 100
         m15 = ((prices[-1] - prices[-4]) / prices[-4]) * 100 if len(prices) >= 4 else m5
-        if m5 > 0.01:
+        if m5 > 0.001:
             strength = min(abs(m5) * 100, 100)
             if m15 > 0:
                 strength = min(strength + 20, 100)
-            return "BUY", strength, f"+{m5:.3f}%"
+            return "BUY", max(strength, 5), f"+{m5:.3f}%"
         elif m5 < -0.02:
             return "WAIT", 0, f"{m5:.3f}%"
         return "WAIT", 0, "Flat"
@@ -136,9 +136,9 @@ def sell(position, reason):
 def run():
     print("=" * 40)
     print("🌱 PROJECT HOPE BOT")
-    print("🔥 AGGRESSIVE: 10% signal, 30s scans")
+    print("🔥 ULTRA: 1% signal, 15s scans")
     print("=" * 40)
-    send_notification("🚀 BOT STARTED", "Aggressive mode active")
+    send_notification("🚀 BOT STARTED", "Ultra aggressive mode")
     
     while True:
         try:
