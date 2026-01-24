@@ -1,4 +1,3 @@
-
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import os
@@ -8,17 +7,10 @@ from dotenv import load_dotenv
 import time
 import requests
 
-# Pushover Notifications
-
-nano app.py
-```
-
-**Step 6:** Find the same lines near the top and change them the same way:
-```
 PUSHOVER_USER_KEY = "ugurfo1drgkckg3i8i9x8cmon5qm85"
 PUSHOVER_API_TOKEN = "aa9hxotiko33nd33zvih8pxsw2cx6a"
+
 def send_notification(title, message, priority=0):
-    """Send push notification to iPhone/Apple Watch"""
     try:
         requests.post("https://api.pushover.net/1/messages.json", data={
             "token": PUSHOVER_API_TOKEN,
