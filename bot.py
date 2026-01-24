@@ -17,8 +17,19 @@ ALPACA_API_KEY = os.getenv('ALPACA_API_KEY')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
 ALPACA_BASE_URL = "https://paper-api.alpaca.markets"
 
+nano bot.py
+```
+
+**Step 3:** Find these lines near the top (around line 14-15):
+```
 PUSHOVER_USER_KEY = "a81i8ufm2sepdytc7o7riieagxyzag"
 PUSHOVER_API_TOKEN = "ugurfo1drgkckg3i8i9x8cmon5qm85"
+```
+
+**Change them to:**
+```
+PUSHOVER_USER_KEY = "ugurfo1drgkckg3i8i9x8cmon5qm85"
+PUSHOVER_API_TOKEN = "aa9hxotiko33nd33zvih8pxsw2cx6a"
 
 TAKE_PROFIT = 0.003
 STOP_LOSS = 0.005
