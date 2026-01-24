@@ -84,19 +84,26 @@ def get_crypto_movers(balance, api):
     try:
         for symbol in CRYPTO_UNIVERSE:
             try:
-                bars = api.get_crypto_bars(symbol, '1Day', limit=2).df
-                if len(bars) >= 1:
+                # Get 5-min bars for real-time momentum
+                bars = api.get_crypto_bars(symbol, '5Min', limit=3).df
+                if len(bars) >= 2:
                     price = float(bars['close'].iloc[-1])
-                    if len(bars) >= 2:
-                        prev_close = float(bars['close'].iloc[-2])
-                        change_pct = ((price - prev_close) / prev_close) * 100
-                    else:
-                        change_pct = 0
+                    price_5min_ago = float(bars['close'].iloc[-2])
+                    momentum_5m = ((price - price_5min_ago) / price_5min_ago) * 100
+                    
                     shares = round((balance * MAX_RISK_PER_TRADE) / price, 6)
-                    movers.append({'symbol': symbol, 'price': price, 'change': change_pct, 'volume': 0, 'shares': shares, 'is_crypto': True})
+                    movers.append({
+                        'symbol': symbol, 
+                        'price': price, 
+                        'change': momentum_5m,  # Now shows 5-min momentum
+                        'volume': 0, 
+                        'shares': shares, 
+                        'is_crypto': True
+                    })
             except:
                 continue
-        movers.sort(key=lambda x: abs(x['change']), reverse=True)
+        # Sort by momentum - positive movers first (best buy opportunities)
+        movers.sort(key=lambda x: x['change'], reverse=True)
         return movers
     except:
         return []
@@ -269,7 +276,7 @@ with st.sidebar:
     if st.session_state.hot_stocks:
         st.markdown("---")
         is_crypto = st.session_state.get('crypto_mode', False)
-        st.markdown(f"**TOP {'CRYPTO' if is_crypto else 'STOCK'} MOVERS:**")
+        st.markdown(f"**{'🔥 5-MIN MOMENTUM:' if is_crypto else 'TOP STOCK MOVERS:'}**")
         for stock in st.session_state.hot_stocks[:5]:
             change_class = "gainer" if stock['change'] > 0 else "loser"
             arrow = "🟢" if stock['change'] > 0 else "🔴"
@@ -341,7 +348,7 @@ try:
             if crypto or ticker in CRYPTO_UNIVERSE:
                 quote = api.get_latest_crypto_quotes(ticker)
                 if ticker in quote:
-                    price = float(quote[ticker].ap)  # ask price
+                    price = float(quote[ticker].ap)
                 else:
                     bars = api.get_crypto_bars(ticker, '1Min', limit=1).df
                     price = float(bars['close'].iloc[-1]) if len(bars) >= 1 else 0
