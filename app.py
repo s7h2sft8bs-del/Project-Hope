@@ -71,6 +71,9 @@ def get_time_until_market():
 
 def get_crypto_price(symbol, api):
     try:
+        # Handle both formats: ETH/USD and ETHUSD
+        if '/' not in symbol:
+            symbol = symbol.replace('USD', '/USD')
         q = api.get_latest_crypto_quotes(symbol)
         return float(q[symbol].ap) if symbol in q else float(api.get_crypto_bars(symbol, '1Min', limit=1).df['close'].iloc[-1])
     except: return 0
@@ -378,26 +381,47 @@ def render_trade():
         st.markdown("### 📈 Positions")
         for pos in positions:
             sym, qty, entry = pos.symbol, float(pos.qty), float(pos.avg_entry_price)
-            is_crypto = '/' in sym
+            # Crypto symbols can be ETH/USD or ETHUSD
+            is_crypto = '/' in sym or sym.endswith('USD') and sym not in STOCK_UNIVERSE
             price = get_crypto_price(sym, api) if is_crypto else get_stock_price(sym, api)
             if price == 0: price = float(pos.current_price)
             pnl_d = (price - entry) * qty
             pnl_p = ((price - entry) / entry) * 100
             color = "#00FFA3" if pnl_p >= 0 else "#FF4B4B"
             target, stop = entry * 1.01, entry * 0.99
+            
+            # AUTO STOP LOSS - ALL TIERS
             if pnl_p <= -1.0:
                 try:
-                    api.close_position(sym); st.session_state.losses += 1
+                    api.close_position(sym)
+                    st.session_state.losses += 1
                     log_trade(sym, "🛡️ STOP", price, qty, pnl_p, pnl_d)
-                    send_notification("🛡️ STOP", f"{sym} {pnl_p:.2f}%"); st.rerun()
-                except: pass
+                    send_notification("🛡️ STOP", f"{sym} {pnl_p:.2f}%")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Stop loss error: {e}")
+            
+            # AUTO PROFIT - TIER 3 AUTOPILOT
             if st.session_state.autopilot and st.session_state.tier == 3 and pnl_p >= 1.0:
                 try:
-                    api.close_position(sym); st.session_state.wins += 1
+                    api.close_position(sym)
+                    st.session_state.wins += 1
                     log_trade(sym, "🤖 PROFIT", price, qty, pnl_p, pnl_d)
-                    send_notification("🤖 PROFIT", f"{sym} +{pnl_p:.2f}%"); st.balloons(); st.rerun()
-                except: pass
-            qd = f"{qty:.6f}" if is_crypto else f"{qty:.0f}"
+                    send_notification("🤖 PROFIT", f"{sym} +{pnl_p:.2f}%")
+                    st.balloons()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Auto-sell error: {e}")
+            
+            # Better qty display - show more decimals for small amounts
+            if qty < 0.01:
+                qd = f"{qty:.8f}"
+            elif qty < 1:
+                qd = f"{qty:.6f}"
+            elif is_crypto:
+                qd = f"{qty:.4f}"
+            else:
+                qd = f"{qty:.0f}"
             st.markdown(f'<div class="position-card {"position-profit" if pnl_p >= 0 else "position-loss"}"><div style="display:flex;justify-content:space-between;"><div><h3 style="color:white;margin:0;">{sym}</h3><p style="color:#808495;">Entry: ${entry:,.4f}</p><p style="color:#00E5FF;font-size:1.2em;">Live: ${price:,.4f}</p></div><div style="text-align:right;"><h2 style="color:{color};margin:0;">{pnl_p:+.2f}%</h2><p style="color:{color};">${pnl_d:+,.2f}</p><p style="color:#808495;">Qty: {qd}</p></div></div><div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,0.1);display:flex;justify-content:space-between;"><p style="color:#00FFA3;margin:0;">🎯 Target: ${target:,.4f}</p><p style="color:#FF4B4B;margin:0;">🛡️ Stop: ${stop:,.4f}</p></div></div>', unsafe_allow_html=True)
             st.session_state.daily_pnl = pnl_d
             c1, c2 = st.columns(2)
