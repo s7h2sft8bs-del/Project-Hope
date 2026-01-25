@@ -857,6 +857,10 @@ def render_trade():
             card_class = "position-profit" if pnl_pct >= 0 else "position-loss"
             asset_type = "🪙 CRYPTO" if is_crypto else "📈 STOCK"
             
+            # Calculate target and stop prices
+            target_price = entry_price * 1.01  # +1%
+            stop_price = entry_price * 0.99    # -1%
+            
             st.markdown(f"""
             <div class="position-card {card_class}">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -870,6 +874,12 @@ def render_trade():
                         <h2 style="color: {pnl_color}; margin: 0;">{pnl_pct:+.2f}%</h2>
                         <p style="color: {pnl_color}; margin: 5px 0; font-size: 1.1em;">${pnl_dollar:+,.2f}</p>
                         <p style="color: #808495;">Qty: {f"{qty:.6f}" if is_crypto else f"{qty:.0f}"}</p>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <div style="display: flex; justify-content: space-between;">
+                        <p style="color: #00FFA3; margin: 0;">🎯 Target (+1%): ${target_price:,.4f}</p>
+                        <p style="color: #FF4B4B; margin: 0;">🛡️ Stop (-1%): ${stop_price:,.4f}</p>
                     </div>
                 </div>
             </div>
@@ -971,6 +981,16 @@ def render_trade():
     # CRYPTO SCANNER (always available)
     st.markdown(f"### 🪙 Crypto Scanner (Using ${crypto_balance:.2f})")
     st.caption("✅ Instant Settlement - 24/7 Trading - No PDT!")
+    
+    # AUTO-SCAN when Autopilot is enabled
+    if st.session_state.autopilot and st.session_state.tier == 3:
+        time_since_scan = time.time() - st.session_state.last_crypto_scan
+        if time_since_scan >= AUTO_SCAN_INTERVAL or st.session_state.last_crypto_scan == 0:
+            st.session_state.scanned_crypto = scan_all_crypto(api, crypto_balance)
+            st.session_state.last_crypto_scan = time.time()
+        next_scan = int(AUTO_SCAN_INTERVAL - time_since_scan)
+        if next_scan > 0:
+            st.info(f"🤖 Auto-scan in {next_scan}s")
     
     col1, col2 = st.columns([3, 1])
     with col2:
