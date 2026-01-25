@@ -181,7 +181,7 @@ def render_home():
     c1, c2, c3 = st.columns(3)
     with c1: st.markdown('<div class="tier-card tier-starter"><h3 style="color:#00FFA3;">🌱 STARTER</h3><h2 style="color:white;">$29/mo</h2><p style="color:white;">✅ Scanner & Stop-Loss</p><p style="color:#808495;">❌ Auto-Buy</p></div>', unsafe_allow_html=True); st.button("Soon", key="t1", disabled=True, use_container_width=True)
     with c2: st.markdown('<div class="tier-card tier-builder"><h3 style="color:#00E5FF;">🚀 BUILDER</h3><h2 style="color:white;">$79/mo</h2><p style="color:white;">✅ One-Click Trade</p><p style="color:#808495;">❌ Autopilot</p></div>', unsafe_allow_html=True); st.button("Soon", key="t2", disabled=True, use_container_width=True)
-    with c3: st.markdown('<div class="tier-card tier-master"><h3 style="color:#FFD700;">⚡ MASTER</h3><h2 style="color:white;">$149/mo</h2><p style="color:white;">✅ FULL AUTOPILOT</p></div>', unsafe_allow_html=True); st.button("Soon", key="t3", disabled=True, use_container_width=True)
+    with c3: st.markdown('<div class="tier-card tier-master"><h3 style="color:#FFD700;">⚡ MASTER</h3><h2 style="color:white;">$149/mo</h2><p style="color:white;">✅ FULL AUTOPILOT</p><p style="color:white;">✅ Auto-Sell +1%</p></div>', unsafe_allow_html=True); st.button("Soon", key="t3", disabled=True, use_container_width=True)
     st.markdown("---")
     st.markdown("### 🔐 Access Code")
     _, c2, _ = st.columns([1,2,1])
@@ -209,75 +209,35 @@ def render_about():
     
     c1, c2 = st.columns([1, 2])
     with c1:
-        st.markdown('''
-        <div style="text-align:center;">
-            <img src="https://i.postimg.cc/qvVSgvfx/IMG-7642.jpg" style="width:100%;max-width:300px;border-radius:20px;border:3px solid #FFD700;box-shadow:0 10px 40px rgba(255,215,0,0.3);">
-            <h2 style="color:#FFD700;margin-top:20px;margin-bottom:5px;">Stephen Martinez</h2>
-            <p style="color:#00FFA3;font-size:1.1em;margin:5px 0;">Founder & Developer</p>
-            <p style="color:#808495;">📍 Lancaster, PA</p>
-        </div>
-        ''', unsafe_allow_html=True)
+        st.markdown('<div style="text-align:center;"><img src="https://i.postimg.cc/qvVSgvfx/IMG-7642.jpg" style="width:100%;max-width:300px;border-radius:20px;border:3px solid #FFD700;"><h2 style="color:#FFD700;margin-top:20px;">Stephen Martinez</h2><p style="color:#00FFA3;">Founder & Developer</p><p style="color:#808495;">Lancaster, PA</p></div>', unsafe_allow_html=True)
     
     with c2:
-        st.markdown('''
-        <div style="padding:20px;">
-            <h2 style="color:white;margin-bottom:20px;">My Story</h2>
-            
-            <p style="color:#E0E0E0;font-size:1.1em;line-height:1.8;">
-                I'm Stephen — an Amazon warehouse worker from Lancaster, Pennsylvania. Every day I watch 
-                my coworkers, friends, and family try to build a better future through trading, only to 
-                lose their hard-earned money on apps designed to make them trade more, not trade <em>smarter</em>.
-            </p>
-            
-            <p style="color:#E0E0E0;font-size:1.1em;line-height:1.8;">
-                I got tired of seeing everyday people get burned while Wall Street has all the protection. 
-                So I taught myself to code — during lunch breaks, after 10-hour shifts, late nights when 
-                everyone else was sleeping. I studied what separates winning traders from the 95% who lose.
-            </p>
-            
-            <p style="color:#00FFA3;font-size:1.2em;line-height:1.8;font-weight:600;">
-                The answer was always the same: <span style="color:#FFD700;">PROTECTION</span>.
-            </p>
-            
-            <p style="color:#E0E0E0;font-size:1.1em;line-height:1.8;">
-                Wall Street has circuit breakers, stop losses, and risk management systems. Regular people? 
-                They get confetti animations when they blow their accounts.
-            </p>
-            
-            <div style="background:rgba(0,255,163,0.1);border-radius:15px;padding:20px;margin-top:20px;border:1px solid rgba(0,255,163,0.3);">
-                <h3 style="color:#00FFA3;margin:0 0 10px 0;">💡 What is Project Hope?</h3>
-                <p style="color:white;margin:0;font-size:1.05em;">
-                    Project Hope is my mission to level the playing field. It's a trading app with 
-                    <b>built-in protection</b> — automatic stop losses, smart entry signals, and risk 
-                    management that works FOR you, not against you. No more watching helplessly as a 
-                    bad trade wipes out your gains.
-                </p>
-            </div>
-            
-            <div style="background:rgba(255,215,0,0.1);border-radius:15px;padding:20px;margin-top:15px;border:1px solid rgba(255,215,0,0.3);">
-                <h3 style="color:#FFD700;margin:0 0 10px 0;">🎯 My Mission</h3>
-                <p style="color:white;margin:0;font-size:1.05em;">
-                    To give everyday people — warehouse workers, teachers, nurses, parents working two jobs — 
-                    the same protection that hedge funds have. Because everyone deserves a fair shot at 
-                    building wealth, not just the 1%.
-                </p>
-            </div>
-            
-            <p style="color:#808495;font-size:1em;margin-top:20px;font-style:italic;">
-                "This isn't just an app. It's hope for people like me — people who weren't born with a 
-                silver spoon but refuse to stop fighting for a better life."
-            </p>
-        </div>
-        ''', unsafe_allow_html=True)
+        st.markdown("## My Story")
+        st.markdown("""
+I'm **Stephen** — an Amazon warehouse worker from Lancaster, Pennsylvania. Every day I watch my coworkers, friends, and family try to build a better future through trading, only to lose their hard-earned money on apps designed to make them trade more, not trade *smarter*.
+
+I got tired of seeing everyday people get burned while Wall Street has all the protection. So I taught myself to code — during lunch breaks, after 10-hour shifts, late nights when everyone else was sleeping. I studied what separates winning traders from the 95% who lose.
+        """)
+        st.markdown("### :green[The answer was always the same:] :orange[PROTECTION]")
+        st.markdown("""
+Wall Street has circuit breakers, stop losses, and risk management systems. Regular people? They get confetti animations when they blow their accounts.
+        """)
+        st.success("""
+**💡 What is Project Hope?**
+
+Project Hope is my mission to level the playing field. It's a trading app with **built-in protection** — automatic stop losses, smart entry signals, and risk management that works FOR you, not against you. No more watching helplessly as a bad trade wipes out your gains.
+        """)
+        st.warning("""
+**🎯 My Mission**
+
+To give everyday people — warehouse workers, teachers, nurses, parents working two jobs — the same protection that hedge funds have. Because everyone deserves a fair shot at building wealth, not just the 1%.
+        """)
+        st.caption("*This isn't just an app. It's hope for people like me — people who weren't born with a silver spoon but refuse to stop fighting for a better life.*")
     
     st.markdown("---")
-    st.markdown('''
-    <div style="text-align:center;padding:30px;">
-        <h3 style="color:white;">Let's Connect</h3>
-        <p style="color:#00FFA3;font-size:1.2em;">📧 thetradingprotocol@gmail.com</p>
-        <p style="color:#808495;margin-top:20px;">Built with 💚 for the 99%</p>
-    </div>
-    ''', unsafe_allow_html=True)
+    st.markdown("### 📬 Let's Connect")
+    st.markdown("📧 **thetradingprotocol@gmail.com**")
+    st.caption("Built with 💚 for the 99%")
 
 def render_howto():
     st.markdown('<div class="main-header"><h1 style="color:#00FFA3;">🌱 PROJECT HOPE</h1><p style="color:#808495;">How It Works</p></div>', unsafe_allow_html=True)
