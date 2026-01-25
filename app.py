@@ -251,7 +251,7 @@ def analyze_crypto(symbol, api, balance):
     """Complete technical analysis for crypto"""
     try:
         bars = api.get_crypto_bars(symbol, '5Min', limit=50).df
-        if len(bars) < 26:
+        if len(bars) < 10:
             return None
         
         prices = bars['close'].values
