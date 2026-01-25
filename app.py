@@ -21,7 +21,7 @@ STOCK_UNIVERSE = ["SQQQ", "NIO", "PLTR", "SOFI", "SNAP", "HOOD", "RIVN", "LCID",
 
 st.set_page_config(page_title="Project Hope", page_icon="🌱", layout="wide")
 load_dotenv()
-st_autorefresh(interval=3000, key="refresh")
+st_autorefresh(interval=2000, key="refresh")
 
 st.markdown("""<style>
 .stApp{background:linear-gradient(180deg,#0a0e1a,#151b2e)}
@@ -35,6 +35,8 @@ st.markdown("""<style>
 .market-closed{background:linear-gradient(135deg,rgba(255,75,75,0.3),rgba(200,50,50,0.2));border:2px solid #FF4B4B;border-radius:12px;padding:10px;text-align:center}
 .stat-card{background:rgba(255,255,255,0.05);border-radius:15px;padding:20px;text-align:center}
 .live-badge{background:rgba(255,0,0,0.2);border:1px solid red;border-radius:4px;padding:2px 8px;font-size:10px;color:red;animation:blink 1s infinite}
+.ticker-up{color:#00FFA3;font-weight:bold}.ticker-down{color:#FF4B4B;font-weight:bold}.ticker-neutral{color:#808495}
+.ticker-card{background:rgba(255,255,255,0.03);border-radius:10px;padding:10px;text-align:center;margin:5px}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.5}}
 .stButton>button{background:linear-gradient(135deg,#00FFA3,#00CC7A);color:black;font-weight:600;border:none;border-radius:10px}
 </style>""", unsafe_allow_html=True)
@@ -151,7 +153,7 @@ try:
     api_connected = True
 except: api_connected, api = False, None
 
-for k, v in {'page': 'home', 'tier': 0, 'daily_trades': 0, 'daily_pnl': 0.0, 'last_date': None, 'wins': 0, 'losses': 0, 'scanned_crypto': [], 'scanned_stocks': [], 'last_crypto_scan': 0, 'last_stock_scan': 0, 'autopilot': False, 'trade_history': [], 'total_profit': 0.0}.items():
+for k, v in {'page': 'home', 'tier': 0, 'daily_trades': 0, 'daily_pnl': 0.0, 'last_date': None, 'wins': 0, 'losses': 0, 'scanned_crypto': [], 'scanned_stocks': [], 'last_crypto_scan': 0, 'last_stock_scan': 0, 'autopilot': False, 'trade_history': [], 'total_profit': 0.0, 'prev_prices': {}}.items():
     if k not in st.session_state: st.session_state[k] = v
 
 def render_home():
@@ -204,10 +206,78 @@ def render_about():
     with c5:
         if st.button("📖", use_container_width=True, key="a5"): st.session_state.page = 'howto'; st.rerun()
     st.markdown("---")
+    
     c1, c2 = st.columns([1, 2])
-    with c1: st.markdown('<div style="text-align:center;"><img src="https://i.postimg.cc/qvVSgvfx/IMG-7642.jpg" style="width:100%;max-width:300px;border-radius:20px;border:3px solid #FFD700;"><h3 style="color:#FFD700;margin-top:15px;">Stephen Martinez</h3><p style="color:#00FFA3;">Founder</p><p style="color:#808495;">Lancaster, PA</p></div>', unsafe_allow_html=True)
-    with c2: st.markdown('<div style="padding:20px;"><h3 style="color:white;">From Amazon Warehouse to Wall Street Tools</h3><p style="color:#E0E0E0;">I taught myself to code during breaks. The answer was always <b style="color:#00FFA3;">protection</b>.</p><p style="color:#FFD700;font-weight:600;">Project Hope changes that.</p></div>', unsafe_allow_html=True)
-    st.markdown('<div style="text-align:center;margin-top:30px;"><p style="color:#E0E0E0;">📧 thetradingprotocol@gmail.com</p></div>', unsafe_allow_html=True)
+    with c1:
+        st.markdown('''
+        <div style="text-align:center;">
+            <img src="https://i.postimg.cc/qvVSgvfx/IMG-7642.jpg" style="width:100%;max-width:300px;border-radius:20px;border:3px solid #FFD700;box-shadow:0 10px 40px rgba(255,215,0,0.3);">
+            <h2 style="color:#FFD700;margin-top:20px;margin-bottom:5px;">Stephen Martinez</h2>
+            <p style="color:#00FFA3;font-size:1.1em;margin:5px 0;">Founder & Developer</p>
+            <p style="color:#808495;">📍 Lancaster, PA</p>
+        </div>
+        ''', unsafe_allow_html=True)
+    
+    with c2:
+        st.markdown('''
+        <div style="padding:20px;">
+            <h2 style="color:white;margin-bottom:20px;">My Story</h2>
+            
+            <p style="color:#E0E0E0;font-size:1.1em;line-height:1.8;">
+                I'm Stephen — an Amazon warehouse worker from Lancaster, Pennsylvania. Every day I watch 
+                my coworkers, friends, and family try to build a better future through trading, only to 
+                lose their hard-earned money on apps designed to make them trade more, not trade <em>smarter</em>.
+            </p>
+            
+            <p style="color:#E0E0E0;font-size:1.1em;line-height:1.8;">
+                I got tired of seeing everyday people get burned while Wall Street has all the protection. 
+                So I taught myself to code — during lunch breaks, after 10-hour shifts, late nights when 
+                everyone else was sleeping. I studied what separates winning traders from the 95% who lose.
+            </p>
+            
+            <p style="color:#00FFA3;font-size:1.2em;line-height:1.8;font-weight:600;">
+                The answer was always the same: <span style="color:#FFD700;">PROTECTION</span>.
+            </p>
+            
+            <p style="color:#E0E0E0;font-size:1.1em;line-height:1.8;">
+                Wall Street has circuit breakers, stop losses, and risk management systems. Regular people? 
+                They get confetti animations when they blow their accounts.
+            </p>
+            
+            <div style="background:rgba(0,255,163,0.1);border-radius:15px;padding:20px;margin-top:20px;border:1px solid rgba(0,255,163,0.3);">
+                <h3 style="color:#00FFA3;margin:0 0 10px 0;">💡 What is Project Hope?</h3>
+                <p style="color:white;margin:0;font-size:1.05em;">
+                    Project Hope is my mission to level the playing field. It's a trading app with 
+                    <b>built-in protection</b> — automatic stop losses, smart entry signals, and risk 
+                    management that works FOR you, not against you. No more watching helplessly as a 
+                    bad trade wipes out your gains.
+                </p>
+            </div>
+            
+            <div style="background:rgba(255,215,0,0.1);border-radius:15px;padding:20px;margin-top:15px;border:1px solid rgba(255,215,0,0.3);">
+                <h3 style="color:#FFD700;margin:0 0 10px 0;">🎯 My Mission</h3>
+                <p style="color:white;margin:0;font-size:1.05em;">
+                    To give everyday people — warehouse workers, teachers, nurses, parents working two jobs — 
+                    the same protection that hedge funds have. Because everyone deserves a fair shot at 
+                    building wealth, not just the 1%.
+                </p>
+            </div>
+            
+            <p style="color:#808495;font-size:1em;margin-top:20px;font-style:italic;">
+                "This isn't just an app. It's hope for people like me — people who weren't born with a 
+                silver spoon but refuse to stop fighting for a better life."
+            </p>
+        </div>
+        ''', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.markdown('''
+    <div style="text-align:center;padding:30px;">
+        <h3 style="color:white;">Let's Connect</h3>
+        <p style="color:#00FFA3;font-size:1.2em;">📧 thetradingprotocol@gmail.com</p>
+        <p style="color:#808495;margin-top:20px;">Built with 💚 for the 99%</p>
+    </div>
+    ''', unsafe_allow_html=True)
 
 def render_howto():
     st.markdown('<div class="main-header"><h1 style="color:#00FFA3;">🌱 PROJECT HOPE</h1><p style="color:#808495;">How It Works</p></div>', unsafe_allow_html=True)
@@ -302,6 +372,48 @@ def render_trade():
         with c2:
             if st.session_state.autopilot: st.success("🤖 AUTOPILOT ACTIVE")
     st.markdown('<div class="protection-badge">🛡️ <b>PROTECTION ACTIVE</b> | Stop: -1% | Profit: +1%</div>', unsafe_allow_html=True)
+    
+    # ==================== LIVE TICKER ====================
+    st.markdown("### 📊 Live Prices")
+    st.caption("🔴 Updates every 2 seconds")
+    
+    # Crypto Ticker
+    st.markdown("**🪙 Crypto**")
+    crypto_html = '<div style="display:flex;flex-wrap:wrap;gap:10px;">'
+    for sym in CRYPTO_UNIVERSE:
+        price = get_crypto_price(sym, api)
+        name = sym.replace("/USD", "")
+        prev_key = f"prev_{sym}"
+        prev = st.session_state.prev_prices.get(sym, price)
+        change = ((price - prev) / prev * 100) if prev > 0 else 0
+        st.session_state.prev_prices[sym] = price
+        if change > 0: arrow, color = "▲", "#00FFA3"
+        elif change < 0: arrow, color = "▼", "#FF4B4B"
+        else: arrow, color = "●", "#808495"
+        crypto_html += f'<div class="ticker-card"><span style="color:white;font-weight:bold;">{name}</span><br><span style="color:#00E5FF;font-size:1.1em;">${price:,.2f}</span><br><span style="color:{color};">{arrow} {change:+.2f}%</span></div>'
+    crypto_html += '</div>'
+    st.markdown(crypto_html, unsafe_allow_html=True)
+    
+    # Stock Ticker (only if market open)
+    if mo:
+        st.markdown("**📈 Stocks**")
+        stock_html = '<div style="display:flex;flex-wrap:wrap;gap:10px;">'
+        for sym in STOCK_UNIVERSE[:12]:  # Show first 12 stocks
+            price = get_stock_price(sym, api)
+            if price == 0: continue
+            prev = st.session_state.prev_prices.get(sym, price)
+            change = ((price - prev) / prev * 100) if prev > 0 else 0
+            st.session_state.prev_prices[sym] = price
+            if change > 0: arrow, color = "▲", "#00FFA3"
+            elif change < 0: arrow, color = "▼", "#FF4B4B"
+            else: arrow, color = "●", "#808495"
+            is_inverse = sym == "SQQQ"
+            stock_html += f'<div class="ticker-card" style="{"border:1px solid #FF4B4B;" if is_inverse else ""}"><span style="color:{"#FF4B4B" if is_inverse else "white"};font-weight:bold;">{"🔴 " if is_inverse else ""}{sym}</span><br><span style="color:#00E5FF;font-size:1.1em;">${price:,.2f}</span><br><span style="color:{color};">{arrow} {change:+.2f}%</span></div>'
+        stock_html += '</div>'
+        st.markdown(stock_html, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
     if positions:
         st.markdown("### 📈 Positions")
         for pos in positions:
