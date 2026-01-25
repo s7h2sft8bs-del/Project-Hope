@@ -919,6 +919,16 @@ def render_trade():
         st.markdown(f"### 📈 Stock Scanner (Using ${stock_balance:.2f})")
         st.caption("⚠️ T+1 Settlement - Funds available next business day")
         
+        # AUTO-SCAN when Autopilot is enabled
+        if st.session_state.autopilot and st.session_state.tier == 3:
+            time_since_scan = time.time() - st.session_state.last_stock_scan
+            if time_since_scan >= AUTO_SCAN_INTERVAL or st.session_state.last_stock_scan == 0:
+                st.session_state.scanned_stocks = scan_all_stocks(api, stock_balance)
+                st.session_state.last_stock_scan = time.time()
+            next_scan = int(AUTO_SCAN_INTERVAL - time_since_scan)
+            if next_scan > 0:
+                st.info(f"🤖 Auto-scan in {next_scan}s")
+        
         col1, col2 = st.columns([3, 1])
         with col2:
             if st.button("🔄 SCAN STOCKS", use_container_width=True, type="primary"):
@@ -954,7 +964,8 @@ def render_trade():
                     if already_owns:
                         st.success(f"✅ Already own {asset['symbol']}")
                     elif score >= 4 and st.session_state.tier >= 2:
-                        if st.button(f"🟢 BUY {asset['symbol']}", key=f"buy_stock_{asset['symbol']}", use_container_width=True, type="primary"):
+                        # AUTO-BUY when Autopilot is enabled
+                        if st.session_state.autopilot and st.session_state.tier == 3:
                             try:
                                 api.submit_order(
                                     symbol=asset['symbol'],
@@ -964,13 +975,31 @@ def render_trade():
                                     time_in_force='day'
                                 )
                                 st.session_state.daily_trades += 1
-                                send_notification("🟢 BUY STOCK", f"{asset['symbol']} @ ${asset['price']:,.2f}")
-                                st.success(f"✅ Bought {asset['symbol']}!")
+                                send_notification("🤖 AUTO-BUY STOCK", f"{asset['symbol']} @ ${asset['price']:,.2f}")
+                                st.success(f"🤖 AUTO-BOUGHT {asset['symbol']}!")
                                 st.balloons()
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error: {e}")
+                                st.error(f"Auto-buy error: {e}")
+                        else:
+                            if st.button(f"🟢 BUY {asset['symbol']}", key=f"buy_stock_{asset['symbol']}", use_container_width=True, type="primary"):
+                                try:
+                                    api.submit_order(
+                                        symbol=asset['symbol'],
+                                        qty=asset['shares'],
+                                        side='buy',
+                                        type='market',
+                                        time_in_force='day'
+                                    )
+                                    st.session_state.daily_trades += 1
+                                    send_notification("🟢 BUY STOCK", f"{asset['symbol']} @ ${asset['price']:,.2f}")
+                                    st.success(f"✅ Bought {asset['symbol']}!")
+                                    st.balloons()
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
                     elif score >= 4:
                         st.info("🔒 Upgrade to Builder for trading")
                     else:
@@ -1027,7 +1056,8 @@ def render_trade():
                 if already_owns:
                     st.success(f"✅ Already own {asset['symbol']}")
                 elif score >= 4 and st.session_state.tier >= 2:
-                    if st.button(f"🟢 BUY {asset['symbol']}", key=f"buy_crypto_{asset['symbol']}", use_container_width=True, type="primary"):
+                    # AUTO-BUY when Autopilot is enabled
+                    if st.session_state.autopilot and st.session_state.tier == 3:
                         try:
                             api.submit_order(
                                 symbol=asset['symbol'],
@@ -1037,13 +1067,31 @@ def render_trade():
                                 time_in_force='gtc'
                             )
                             st.session_state.daily_trades += 1
-                            send_notification("🟢 BUY CRYPTO", f"{asset['symbol']} @ ${asset['price']:,.2f}")
-                            st.success(f"✅ Bought {asset['symbol']}!")
+                            send_notification("🤖 AUTO-BUY", f"{asset['symbol']} @ ${asset['price']:,.2f}")
+                            st.success(f"🤖 AUTO-BOUGHT {asset['symbol']}!")
                             st.balloons()
                             time.sleep(1)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error: {e}")
+                            st.error(f"Auto-buy error: {e}")
+                    else:
+                        if st.button(f"🟢 BUY {asset['symbol']}", key=f"buy_crypto_{asset['symbol']}", use_container_width=True, type="primary"):
+                            try:
+                                api.submit_order(
+                                    symbol=asset['symbol'],
+                                    qty=asset['shares'],
+                                    side='buy',
+                                    type='market',
+                                    time_in_force='gtc'
+                                )
+                                st.session_state.daily_trades += 1
+                                send_notification("🟢 BUY CRYPTO", f"{asset['symbol']} @ ${asset['price']:,.2f}")
+                                st.success(f"✅ Bought {asset['symbol']}!")
+                                st.balloons()
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
                 elif score >= 4:
                     st.info("🔒 Upgrade to Builder for trading")
                 else:
@@ -1076,4 +1124,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
