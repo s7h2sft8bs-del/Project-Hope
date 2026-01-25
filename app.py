@@ -33,6 +33,8 @@ CRYPTO_ALLOCATION = 0.50
 # Asset Lists - Affordable stocks under $50 for small accounts
 CRYPTO_UNIVERSE = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "SHIB/USD", "AVAX/USD", "LINK/USD", "UNI/USD"]
 STOCK_UNIVERSE = [
+    # INVERSE ETF - Profits when market drops (S = Short)
+    "SQQQ",
     # Under $10
     "NIO", "PLTR", "SOFI", "SNAP", "HOOD", "RIVN", "LCID", "F", "AAL", "CCL", "T", "WBD", "INTC",
     # $10-30
@@ -333,7 +335,7 @@ def analyze_stock(symbol, api, balance):
     """Complete technical analysis for stocks"""
     try:
         bars = api.get_bars(symbol, '5Min', limit=50).df
-        if len(bars) < 26:
+        if len(bars) < 10:
             return None
         
         prices = bars['close'].values
@@ -618,7 +620,7 @@ def render_about():
     with col1:
         st.markdown("""
         <div style="text-align: center;">
-            <img src="https://i.postimg.cc/qvVSgvfx/IMG-7642.jpg" style="width: 100%; max-width: 300px; border-radius: 20px; border: 3px solid #FFD700;">
+            <img src="https://i.postimg.cc/7Y1Wy3jK/IMG-7642.jpg" style="width: 100%; max-width: 300px; border-radius: 20px; border: 3px solid #FFD700;">
         </div>
         """, unsafe_allow_html=True)
         st.markdown("""
@@ -867,7 +869,7 @@ def render_trade():
                     <div style="text-align: right;">
                         <h2 style="color: {pnl_color}; margin: 0;">{pnl_pct:+.2f}%</h2>
                         <p style="color: {pnl_color}; margin: 5px 0; font-size: 1.1em;">${pnl_dollar:+,.2f}</p>
-                        <p style="color: #808495;">Qty: {qty:.6f if is_crypto else qty:.0f}</p>
+                        <p style="color: #808495;">Qty: {f"{qty:.6f}" if is_crypto else f"{qty:.0f}"}</p>
                     </div>
                 </div>
             </div>
