@@ -1,6 +1,0 @@
-streamlit
-streamlit-autorefresh
-alpaca-trade-api
-python-dotenv
-pandas
-pytz
